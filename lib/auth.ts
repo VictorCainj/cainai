@@ -21,16 +21,56 @@ export interface LoginData {
 }
 
 class AuthService {
+  private sessionCache: { session: Session | null; timestamp: number } | null = null
+  private readonly CACHE_DURATION = 30000 // 30 segundos
+
   // Obter usuário atual
   async getCurrentUser(): Promise<AuthUser> {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user || null
+    try {
+      const { data: { user } } = await Promise.race([
+        supabase.auth.getUser(),
+        new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error('getUser timeout')), 5000)
+        )
+      ])
+      return user || null
+    } catch (error) {
+      console.warn('getCurrentUser error:', error)
+      return null
+    }
   }
 
-  // Obter sessão atual
+  // Obter sessão atual com cache e timeout
   async getCurrentSession(): Promise<Session | null> {
-    const { data: { session } } = await supabase.auth.getSession()
-    return session
+    try {
+      // Verificar cache primeiro
+      const now = Date.now()
+      if (this.sessionCache && (now - this.sessionCache.timestamp) < this.CACHE_DURATION) {
+        return this.sessionCache.session
+      }
+
+      // Buscar nova sessão com timeout
+      const { data: { session } } = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error('getSession timeout')), 5000)
+        )
+      ])
+      
+      // Atualizar cache
+      this.sessionCache = { session, timestamp: now }
+      
+      return session
+    } catch (error) {
+      console.warn('getCurrentSession error:', error)
+      // Retornar cache se houver erro
+      return this.sessionCache?.session || null
+    }
+  }
+
+  // Limpar cache quando necessário
+  private clearSessionCache() {
+    this.sessionCache = null
   }
 
   // Registrar novo usuário
@@ -74,6 +114,11 @@ class AuthService {
         password
       })
 
+      // Limpar cache ao fazer login
+      if (!error) {
+        this.clearSessionCache()
+      }
+
       return { 
         user: data.user, 
         error, 
@@ -113,6 +158,8 @@ class AuthService {
   // Logout
   async logout(): Promise<{ error: AuthError | null }> {
     const { error } = await supabase.auth.signOut()
+    // Limpar cache ao fazer logout
+    this.clearSessionCache()
     return { error }
   }
 
@@ -166,24 +213,34 @@ class AuthService {
     }
   }
 
-  // Buscar perfil existente
+  // Buscar perfil existente com timeout
   async getUserProfile(): Promise<any> {
     try {
       const session = await this.getCurrentSession()
       if (!session?.user) return null
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
+      // Buscar perfil com timeout
+      const profilePromise = Promise.race([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single(),
+        new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error('Profile timeout')), 3000)
+        )
+      ])
+
+      const { data, error } = await profilePromise
 
       if (error) {
+        console.warn('getUserProfile error:', error)
         return null
       }
 
       return data
     } catch (error) {
+      console.warn('getUserProfile timeout or error:', error)
       return null
     }
   }

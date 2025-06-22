@@ -75,56 +75,82 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Inicializar autenticação
+  // Inicializar autenticação de forma otimizada
   useEffect(() => {
     let mounted = true
+    let timeoutId: NodeJS.Timeout
 
     const initializeAuth = async () => {
       try {
-        // Obter sessão atual
-        const currentSession = await authService.getCurrentSession()
+        // Timeout de segurança - não deixar loading mais que 5 segundos
+        timeoutId = setTimeout(() => {
+          if (mounted) {
+            console.warn('Auth timeout - liberando interface')
+            setLoading(false)
+          }
+        }, 5000)
+
+        // Obter sessão atual com timeout mais curto
+        const sessionPromise = Promise.race([
+          authService.getCurrentSession(),
+          new Promise<null>((_, reject) => 
+            setTimeout(() => reject(new Error('Session timeout')), 3000)
+          )
+        ])
+
+        const currentSession = await sessionPromise
         
         if (mounted) {
           setSession(currentSession)
           setUser(currentSession?.user || null)
           
+          // Liberar a interface imediatamente se há usuário
           if (currentSession?.user) {
-            await loadUserProfile(currentSession.user.id)
+            setLoading(false)
+            clearTimeout(timeoutId)
             
-            // Verificar se há dados anônimos para migrar
-            const anonymousUserId = sessionManager.getUserId()
-            if (anonymousUserId && anonymousUserId !== currentSession.user.id && !migrationOffered) {
-              setMigrationOffered(true)
-              // Oferecer migração automática ou manual dependendo da preferência
-              await migrateAnonymousData()
-                         }
+            // Carregar perfil e migração em background (não bloqueante)
+            Promise.all([
+              loadUserProfile(currentSession.user.id).catch(() => {}),
+              (() => {
+                const anonymousUserId = sessionManager.getUserId()
+                if (anonymousUserId && anonymousUserId !== currentSession.user.id && !migrationOffered) {
+                  setMigrationOffered(true)
+                  return migrateAnonymousData().catch(() => {})
+                }
+                return Promise.resolve()
+              })()
+            ]).catch(() => {})
+          } else {
+            setLoading(false)
+            clearTimeout(timeoutId)
           }
-          
-          setLoading(false)
         }
       } catch (error) {
+        console.warn('Auth initialization error:', error)
         if (mounted) {
           setLoading(false)
+          clearTimeout(timeoutId)
         }
       }
     }
 
-    // Escutar mudanças de autenticação
+    // Escutar mudanças de autenticação de forma otimizada
     const { data: { subscription } } = authService.onAuthStateChange(
       async (event, session) => {
-        
         if (mounted) {
           setSession(session)
           setUser(session?.user || null)
           
-                     if (session?.user) {
-             await loadUserProfile(session.user.id)
-             // Session manager será sincronizado com Supabase auth automaticamente
-           } else {
-             setProfile(null)
-           }
-          
+          // Liberar interface imediatamente, carregar perfil em background
           setLoading(false)
+          
+          if (session?.user) {
+            // Carregar perfil em background sem bloquear
+            loadUserProfile(session.user.id).catch(() => {})
+          } else {
+            setProfile(null)
+          }
         }
       }
     )
@@ -133,6 +159,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
       subscription.unsubscribe()
     }
   }, [])

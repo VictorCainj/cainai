@@ -60,6 +60,13 @@ npm start
 - [ ] **Migração automática funciona**: Faça logout/login e veja se o prompt de migração aparece (se houver conversas órfãs)
 - [ ] **Logs de debug estão limpos**: Verificar console do navegador em produção
 
+### ⚡ **Verificações de Performance (NOVO)**
+- [ ] **Carregamento rápido**: Interface carrega em máx 3 segundos
+- [ ] **Não trava na autenticação**: Não fica mais que 5s em "Verificando autenticação"
+- [ ] **Cache funcionando**: Navegação subsequente é instantânea
+- [ ] **Timeouts configurados**: Console não mostra timeouts excessivos
+- [ ] **Perfil carrega em background**: Chat funciona mesmo se perfil demorar
+
 ---
 
 ## 🌐 **OPÇÕES DE DEPLOY**

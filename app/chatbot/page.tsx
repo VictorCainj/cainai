@@ -73,9 +73,19 @@ export default function ChatbotPage() {
   if (loading) {
     return (
       <div className="h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 flex items-center space-x-4">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-          <span className="text-gray-700 font-medium text-lg">Verificando autenticação...</span>
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 max-w-md mx-4">
+          <div className="text-center space-y-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+              <Loader2 className="w-6 h-6 animate-spin text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">Carregando Chat</h3>
+              <p className="text-sm text-gray-500 mt-1">Conectando ao servidor...</p>
+            </div>
+            <div className="text-xs text-gray-400">
+              Se demorar mais que o esperado, recarregue a página
+            </div>
+          </div>
         </div>
       </div>
     )
