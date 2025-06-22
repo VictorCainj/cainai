@@ -293,6 +293,11 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
+    // Log apenas em desenvolvimento
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error in chat API:', error)
+    }
+    
     try {
       if (!process.env.OPENAI_API_KEY) {
         throw new Error('OpenAI API key not configured')

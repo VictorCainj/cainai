@@ -74,20 +74,28 @@ export const ChatInterface = React.forwardRef<
     scrollToBottom()
   }, [messages])
 
-  // Carregar conversas quando o componente monta
+  // Carregar conversas quando o componente monta (apenas uma vez)
   useEffect(() => {
-    loadConversations()
-    // Iniciar com mensagem de boas-vindas se não há conversa
-    if (!conversationId && messages.length === 0) {
-      setMessages([{
-        id: 'welcome',
-        role: 'assistant',
-        content: '🧠 **Olá! Sou seu assistente com super memória, powered by GPT-4 Turbo.**\n\nMinhas novas capacidades incluem:\n\n• 🎯 **Memória Contextual**: Lembro de tudo que discutimos\n• 🔄 **Conexões Inteligentes**: Conecto informações passadas\n• 📋 **Acompanhamento**: Monitoro projetos em andamento\n• 🎓 **Aprendizado Contínuo**: Melhoro a cada interação\n• 🎨 **Geração de Imagens**: Posso criar imagens com DALL-E 3\n• 🎵 **Text-to-Speech Avançado**: Ouça minhas respostas com voz entusiasmada! Clique no botão ▶️\n\n**Para solicitar uma imagem, simplesmente peça:**\n*"Crie uma imagem de..." ou "Desenhe..." ou "Faça um logo..."*\n\n**Para ouvir minhas respostas:**\n*Clique no botão ▶️ que aparece nas minhas mensagens*\n\n**Como posso usar minha super memória, criatividade visual e voz para te ajudar hoje?**',
-        timestamp: new Date()
-      }])
+    const initializeChat = async () => {
+      // Carregar conversas apenas se o userId estiver disponível
+      if (userId) {
+        await loadConversations()
+      }
+      
+      // Iniciar com mensagem de boas-vindas se não há conversa
+      if (!conversationId && messages.length === 0) {
+        setMessages([{
+          id: 'welcome',
+          role: 'assistant',
+          content: '🧠 **Olá! Sou seu assistente com super memória, powered by GPT-4 Turbo.**\n\nMinhas novas capacidades incluem:\n\n• 🎯 **Memória Contextual**: Lembro de tudo que discutimos\n• 🔄 **Conexões Inteligentes**: Conecto informações passadas\n• 📋 **Acompanhamento**: Monitoro projetos em andamento\n• 🎓 **Aprendizado Contínuo**: Melhoro a cada interação\n• 🎨 **Geração de Imagens**: Posso criar imagens com DALL-E 3\n• 🎵 **Text-to-Speech Avançado**: Ouça minhas respostas com voz entusiasmada! Clique no botão ▶️\n\n**Para solicitar uma imagem, simplesmente peça:**\n*"Crie uma imagem de..." ou "Desenhe..." ou "Faça um logo..."*\n\n**Para ouvir minhas respostas:**\n*Clique no botão ▶️ que aparece nas minhas mensagens*\n\n**Como posso usar minha super memória, criatividade visual e voz para te ajudar hoje?**',
+          timestamp: new Date()
+        }])
+      }
+      setConnectionStatus('connected')
     }
-    setConnectionStatus('connected')
-  }, [])
+
+    initializeChat()
+  }, [userId]) // Dependência apenas do userId
 
   const updateLoadingState = (key: keyof LoadingState, value: boolean) => {
     setLoadingState(prev => ({ ...prev, [key]: value }))
@@ -405,11 +413,6 @@ export const ChatInterface = React.forwardRef<
         })
         window.dispatchEvent(event)
       }
-
-      // Recarregar lista de conversas para atualizar
-      setTimeout(() => {
-        loadConversations()
-      }, 500)
 
     } catch (error) {
       setConnectionStatus('error')

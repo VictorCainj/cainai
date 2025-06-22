@@ -6,75 +6,50 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  console.log('=== API DELETE CONVERSATION INICIADA ===')
-  console.log('Params:', params)
-  console.log('Request URL:', request.url)
-
   try {
-    const conversationId = params.id
     const { searchParams } = new URL(request.url)
     const userIdFromQuery = searchParams.get('userId')
     const userIdFromSession = sessionManager.getUserId()
+    const conversationId = params.id
     const userId = userIdFromQuery || userIdFromSession
 
-    console.log('Conversation ID:', conversationId)
-    console.log('User ID from query:', userIdFromQuery)
-    console.log('User ID from session:', userIdFromSession)
-    console.log('Final User ID:', userId)
-
-    if (!userId) {
-      console.error('❌ userId é obrigatório')
-      return NextResponse.json({ 
-        error: 'userId é obrigatório',
-        details: 'Nenhum userId fornecido na query nem na sessão'
-      }, { status: 400 })
+    if (!userId || !conversationId) {
+      return NextResponse.json({ error: 'userId e conversationId são obrigatórios' }, { status: 400 })
     }
 
-    if (!conversationId) {
-      console.error('❌ ID da conversa é obrigatório')
-      return NextResponse.json({ 
-        error: 'ID da conversa é obrigatório',
-        details: 'conversationId está vazio'
-      }, { status: 400 })
+    // Validar que conversationId é um UUID válido
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(conversationId)) {
+      return NextResponse.json({ error: 'conversationId inválido' }, { status: 400 })
     }
 
-    console.log('🔄 Chamando chatService.deleteConversation...')
-    
-    // Excluir conversa e todas as mensagens associadas
+    // Chamar o chat service para excluir
     const success = await chatService.deleteConversation(conversationId)
 
-    console.log('Chat service result:', success)
-
     if (success) {
-      console.log('✅ Conversa excluída com sucesso via API')
       return NextResponse.json({
         success: true,
-        message: 'Conversa e mensagens excluídas com sucesso'
+        message: 'Conversa excluída com sucesso'
       })
     } else {
-      console.error('❌ Chat service retornou false')
       return NextResponse.json({
-        error: 'Falha ao excluir conversa',
-        details: 'chatService.deleteConversation retornou false',
-        success: false
+        success: false,
+        error: 'Falha ao excluir conversa'
       }, { status: 500 })
     }
 
   } catch (error) {
-    console.error('=== ERRO NA API DELETE ===')
-    console.error('Erro completo:', error)
-    
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
-    const errorStack = error instanceof Error ? error.stack : 'Sem stack trace'
     
-    console.error('Error message:', errorMessage)
-    console.error('Error stack:', errorStack)
+    // Log apenas em desenvolvimento
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Erro ao excluir conversa via API:', error)
+    }
     
     return NextResponse.json(
       { 
+        success: false,
         error: 'Erro interno do servidor',
-        details: errorMessage,
-        success: false
+        details: errorMessage
       },
       { status: 500 }
     )

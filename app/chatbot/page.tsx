@@ -11,31 +11,15 @@ import { useAuth } from '@/lib/auth-context'
 export default function ChatbotPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [currentConversationTitle, setCurrentConversationTitle] = useState('Nova Conversa')
   const chatInterfaceRef = useRef<{ startNewConversation: () => void; loadConversation: (id: string) => void; conversationId: string | null }>(null)
 
-  const isFromOAuth = searchParams.get('from') === 'oauth'
-
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/')
-      return
+      router.replace('/')
     }
   }, [user, loading, router])
-
-  useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        router.replace('/')
-      } else {
-        if (isFromOAuth) {
-          router.replace('/chatbot', { scroll: false })
-        }
-      }
-    }
-  }, [user, loading, router, isFromOAuth])
 
   const handleSelectConversation = async (id: string) => {
     setCurrentConversationId(id)
@@ -138,7 +122,7 @@ export default function ChatbotPage() {
 
           {/* Interface de Chat */}
           <div className="flex-1 bg-gray-50 min-h-0">
-            <ChatInterface key={currentConversationId} ref={chatInterfaceRef} />
+            <ChatInterface ref={chatInterfaceRef} />
           </div>
         </div>
       </div>

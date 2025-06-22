@@ -101,11 +101,11 @@ export function ConversationSidebar({
     loadConversations()
   }, [userId])
 
-  // Recarregar conversas a cada 30 segundos para capturar novas conversas
+  // Recarregar conversas a cada 2 minutos para capturar novas conversas (menos frequente)
   useEffect(() => {
     const interval = setInterval(() => {
       loadConversations()
-    }, 30000)
+    }, 120000) // 2 minutos ao invés de 30 segundos
 
     return () => clearInterval(interval)
   }, [userId])
@@ -150,19 +150,12 @@ export function ConversationSidebar({
 
   const handleDeleteConversation = async (conversationId: string) => {
     try {
-      console.log('=== INICIANDO EXCLUSÃO NO FRONTEND ===')
-      console.log('conversationId:', conversationId)
-      console.log('userId:', userId)
-      console.log('user object:', user)
-      
       if (!conversationId) {
-        console.error('❌ conversationId está vazio!')
         showNotification('Erro: ID da conversa não encontrado', 'error')
         return
       }
 
       if (!userId) {
-        console.error('❌ userId está vazio!')
         showNotification('Erro: Usuário não identificado', 'error')
         return
       }
@@ -181,9 +174,7 @@ export function ConversationSidebar({
 
       // Tentar exclusão via API REST primeiro
       try {
-        console.log('🔄 Tentando exclusão via API REST...')
         const apiUrl = `/api/conversations/${conversationId}?userId=${userId}`
-        console.log('URL da API:', apiUrl)
         
         const response = await fetch(apiUrl, {
           method: 'DELETE',
@@ -192,78 +183,57 @@ export function ConversationSidebar({
           }
         })
 
-        console.log('Response status:', response.status)
-        console.log('Response ok:', response.ok)
-
         const result = await response.json()
-        console.log('Response data:', result)
         
         if (!response.ok || !result.success) {
           apiError = new Error(`API Error: ${result.error || `Status ${response.status}`}`)
           throw apiError
         }
-
-        console.log('✅ Conversa excluída com sucesso via API')
         
         // Se chegou aqui, deu sucesso na API
         setConversations(prev => prev.filter(conv => conv.id !== conversationId))
         showNotification('Conversa excluída com sucesso!', 'success')
         
-        setTimeout(() => {
-          loadConversations()
-        }, 1000)
-        
         return // Sair da função se sucesso
 
       } catch (error) {
         apiError = error
-        console.error('❌ Erro na API:', error)
         
         // Fallback: tentar via chat-service diretamente
         try {
-          console.log('🔄 Tentando exclusão via chat-service...')
           const success = await chatService.deleteConversation(conversationId)
-          console.log('Chat-service result:', success)
           
           if (!success) {
             chatServiceError = new Error('Chat-service retornou false')
             throw chatServiceError
           }
           
-          console.log('✅ Conversa excluída com sucesso via chat-service')
-          
           // Se chegou aqui, deu sucesso no chat-service
           setConversations(prev => prev.filter(conv => conv.id !== conversationId))
           showNotification('Conversa excluída com sucesso!', 'success')
-          
-          setTimeout(() => {
-            loadConversations()
-          }, 1000)
           
           return // Sair da função se sucesso
           
         } catch (chatError) {
           chatServiceError = chatError
-          console.error('❌ Erro no chat-service:', chatError)
         }
       }
 
       // Se chegou aqui, ambos falharam
-      console.error('=== AMBOS OS MÉTODOS FALHARAM ===')
-      console.error('API Error:', apiError)
-      console.error('Chat-service Error:', chatServiceError)
-      
       throw new Error(`API: ${apiError?.message || 'desconhecido'} | ChatService: ${chatServiceError?.message || 'desconhecido'}`)
 
     } catch (error) {
-      console.error('Erro ao excluir conversa:', error)
-      
       // Recarregar lista para restaurar estado correto
       loadConversations()
       
-      // Mostrar erro detalhado para o usuário
+      // Mostrar erro para o usuário
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
       showNotification(`Erro ao excluir conversa: ${errorMessage}`, 'error')
+      
+      // Log apenas em desenvolvimento
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erro ao excluir conversa:', error)
+      }
     } finally {
       // Remover do estado "excluindo"
       setDeletingConversations(prev => {
@@ -279,13 +249,16 @@ export function ConversationSidebar({
     loadConversations()
   }
 
-  // Adicionar ao useEffect para detectar mudanças na conversa atual
+  // Listener para novas conversas criadas (via custom event)
   useEffect(() => {
-    // Se uma nova conversa foi criada ou mudou, recarregar lista
-    if (currentConversationId) {
-      loadConversations()
+    const handleNewConversation = () => {
+      // Recarregar conversas quando uma nova for criada
+      setTimeout(() => loadConversations(), 1000)
     }
-  }, [currentConversationId])
+
+    window.addEventListener('conversationCreated', handleNewConversation)
+    return () => window.removeEventListener('conversationCreated', handleNewConversation)
+  }, [])
 
   // Função para mostrar notificações
   const showNotification = (message: string, type: 'success' | 'error') => {

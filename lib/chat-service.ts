@@ -101,6 +101,7 @@ class ChatService {
     
     try {
       const userId = data.userId || sessionManager.getUserId()
+      
       const conversationData = {
         user_id: userId,
         title: data.title.slice(0, 100),
@@ -409,24 +410,16 @@ class ChatService {
     try {
       const userId = sessionManager.getUserId()
       
-      console.log('=== INICIANDO EXCLUSÃO DE CONVERSA ===')
-      console.log('Conversation ID:', conversationId)
-      console.log('User ID:', userId)
-      
       if (!userId) {
-        console.error('User ID não encontrado')
         return false
       }
 
       if (!conversationId) {
-        console.error('Conversation ID não fornecido')
         return false
       }
 
       // Método 1: Tentar exclusão direta via RLS
       try {
-        console.log('🔄 Tentativa 1: Exclusão via RLS...')
-        
         // Verificar se a conversa existe e pertence ao usuário
         const { data: existingConversation, error: checkError } = await supabase
           .from('chat_conversations')
@@ -436,24 +429,12 @@ class ChatService {
           .single()
 
         if (checkError) {
-          console.error('Erro ao verificar conversa:', checkError)
           throw new Error(`Verificação falhou: ${checkError.message}`)
         }
 
         if (!existingConversation) {
-          console.error('Conversa não encontrada ou não pertence ao usuário')
           throw new Error('Conversa não encontrada')
         }
-
-        console.log('Conversa encontrada:', existingConversation)
-
-        // Contar mensagens antes da exclusão
-        const { count: messageCount } = await supabase
-          .from('chat_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('conversation_id', conversationId)
-
-        console.log('Mensagens encontradas:', messageCount)
 
         // Excluir a conversa (mensagens serão excluídas automaticamente por CASCADE)
         const { error: deleteError } = await supabase
@@ -463,11 +444,8 @@ class ChatService {
           .eq('user_id', userId)
 
         if (deleteError) {
-          console.error('Erro ao excluir conversa do Supabase:', deleteError)
           throw new Error(`Exclusão RLS falhou: ${deleteError.message}`)
         }
-
-        console.log('✅ Conversa excluída com sucesso via RLS')
         
         // Verificar se realmente foi excluída
         const { data: deletedCheck } = await supabase
@@ -477,26 +455,18 @@ class ChatService {
           .single()
 
         if (deletedCheck) {
-          console.error('ERRO: Conversa ainda existe após exclusão RLS!')
           throw new Error('Verificação pós-exclusão falhou')
         }
-
-        console.log('Verificação: Conversa realmente excluída via RLS')
         
         // Remover do localStorage local também
         this.removeConversationFromLocalStorage(conversationId)
         this.removeMessagesFromLocalStorage(conversationId)
 
-        console.log('=== EXCLUSÃO VIA RLS CONCLUÍDA COM SUCESSO ===')
         return true
 
       } catch (rlsError) {
-        console.error('❌ Exclusão via RLS falhou:', rlsError)
-        
         // Método 2: Fallback usando função admin
         try {
-          console.log('🔄 Tentativa 2: Exclusão via função admin...')
-          
           const { data: result, error: adminError } = await supabase
             .rpc('delete_conversation_admin', {
               conversation_id_param: conversationId,
@@ -504,34 +474,29 @@ class ChatService {
             })
 
           if (adminError) {
-            console.error('Erro na função admin:', adminError)
             throw new Error(`Função admin falhou: ${adminError.message}`)
           }
-
-          console.log('Resultado da função admin:', result)
           
           if (!result) {
             throw new Error('Função admin retornou false')
           }
-
-          console.log('✅ Conversa excluída com sucesso via função admin')
           
           // Remover do localStorage local também
           this.removeConversationFromLocalStorage(conversationId)
           this.removeMessagesFromLocalStorage(conversationId)
 
-          console.log('=== EXCLUSÃO VIA FUNÇÃO ADMIN CONCLUÍDA COM SUCESSO ===')
           return true
 
         } catch (adminError) {
-          console.error('❌ Exclusão via função admin também falhou:', adminError)
           throw adminError
         }
       }
 
     } catch (error) {
-      console.error('=== ERRO GERAL NA EXCLUSÃO ===')
-      console.error('Erro completo:', error)
+      // Log apenas em desenvolvimento
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Erro na exclusão de conversa:', error)
+      }
       return false
     }
   }

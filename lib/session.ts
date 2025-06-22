@@ -184,19 +184,30 @@ export const sessionManager = SessionManager.getInstance()
 export function useSession() {
   const [sessionInfo, setSessionInfo] = React.useState(sessionManager.getSessionInfo())
 
+  // Remover o interval desnecessário que causava re-renders constantes
+  // A sessão só precisa ser atualizada quando há mudanças reais
   React.useEffect(() => {
-    const interval = setInterval(() => {
-      setSessionInfo(sessionManager.getSessionInfo())
-    }, 1000)
+    // Verificar sessão apenas uma vez no mount
+    setSessionInfo(sessionManager.getSessionInfo())
+  }, [])
 
-    return () => clearInterval(interval)
+  const refreshSession = React.useCallback(() => {
+    setSessionInfo(sessionManager.getSessionInfo())
   }, [])
 
   return {
     ...sessionInfo,
-    signOut: () => sessionManager.signOut(),
-    updateProfile: (updates: any) => sessionManager.createOrUpdateProfile(updates),
-    transferData: (newUserId: string) => sessionManager.transferDataToNewUser(newUserId)
+    signOut: () => {
+      sessionManager.signOut()
+      refreshSession()
+    },
+    updateProfile: async (updates: any) => {
+      const result = await sessionManager.createOrUpdateProfile(updates)
+      refreshSession()
+      return result
+    },
+    transferData: (newUserId: string) => sessionManager.transferDataToNewUser(newUserId),
+    refreshSession
   }
 }
 
