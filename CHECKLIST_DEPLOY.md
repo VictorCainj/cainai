@@ -12,6 +12,8 @@
 - ✅ Conversas sendo salvas corretamente
 - ✅ Mensagens sendo persistidas no Supabase
 - ✅ Função de exclusão funcionando
+- ✅ Sistema de migração de conversas órfãs implementado
+- ✅ Funções `delete_conversation_admin` e `force_delete_conversation` criadas
 
 ---
 
@@ -40,8 +42,23 @@ npm start
 - [ ] Conversas são salvas no banco
 - [ ] Mensagens persistem após reload
 - [ ] Exclusão de conversas funciona
+- [ ] Sistema de migração de conversas órfãs funciona
 - [ ] TTS funciona (se necessário)
 - [ ] Geração de imagens funciona (se necessário)
+
+### 🔧 **Verificações Específicas dos Problemas Corrigidos**
+```bash
+# 1. Execute no Supabase SQL Editor para verificar funções de exclusão
+# Copie e execute: test-exclusao.sql
+
+# 2. Execute no Supabase para corrigir funções (se necessário)
+# Copie e execute: supabase-fix-delete-function.sql
+```
+
+- [ ] **Conversas antigas aparecem após login**: Teste fazer login e verificar se conversas anteriores aparecem
+- [ ] **Exclusão funciona corretamente**: Teste excluir conversas e verificar se saem da lista
+- [ ] **Migração automática funciona**: Faça logout/login e veja se o prompt de migração aparece (se houver conversas órfãs)
+- [ ] **Logs de debug estão limpos**: Verificar console do navegador em produção
 
 ---
 
@@ -139,6 +156,23 @@ curl https://seu-site.com/api/chat -X POST
 1. Verificar logs da aplicação
 2. Verificar conexão com banco
 3. Verificar permissões
+
+### **Se conversas antigas não aparecem:**
+1. Verificar se usuário fez login corretamente
+2. Executar script `test-exclusao.sql` no Supabase
+3. Verificar se há prompt de migração na interface
+4. Forçar migração manual via API: `/api/conversations/migrate`
+
+### **Se exclusão de conversas falhar:**
+1. Abrir console do navegador (F12) e verificar logs
+2. Executar script `supabase-fix-delete-function.sql` no Supabase
+3. Verificar se funções existem: `SELECT proname FROM pg_proc WHERE proname LIKE 'delete_conversation%'`
+4. Testar exclusão manual via SQL se necessário
+
+### **Se aparecer "Função admin retornou false":**
+1. Executar script `supabase-fix-delete-function.sql`
+2. Verificar permissões RLS: consultar `CORRIGIR_EXCLUSAO_CONVERSAS.md`
+3. Conferir se políticas RLS estão ativas nas tabelas
 
 ---
 

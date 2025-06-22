@@ -250,7 +250,7 @@ export function ConversationSidebar({
       let apiError: any = null
       let chatServiceError: any = null
 
-      // Tentar exclusão via API REST primeiro
+      // Método 1: Tentar exclusão via API REST primeiro
       try {
         const apiUrl = `/api/conversations/${conversationId}?userId=${userId}`
         
@@ -264,11 +264,13 @@ export function ConversationSidebar({
         const result = await response.json()
         
         if (!response.ok || !result.success) {
+          console.warn('Exclusão via API falhou:', result.error)
           apiError = new Error(`API Error: ${result.error || `Status ${response.status}`}`)
           throw apiError
         }
         
         // Se chegou aqui, deu sucesso na API
+        console.log('Conversa excluída via API com sucesso')
         setConversations(prev => prev.filter(conv => conv.id !== conversationId))
         showNotification('Conversa excluída com sucesso!', 'success')
         
@@ -276,17 +278,19 @@ export function ConversationSidebar({
 
       } catch (error) {
         apiError = error
+        console.warn('Tentando fallback via chat-service...')
         
-        // Fallback: tentar via chat-service diretamente
+        // Método 2: Fallback via chat-service diretamente
         try {
           const success = await chatService.deleteConversation(conversationId)
           
           if (!success) {
-            chatServiceError = new Error('Chat-service retornou false')
+            chatServiceError = new Error('Exclusão falhou em todos os métodos do servidor')
             throw chatServiceError
           }
           
           // Se chegou aqui, deu sucesso no chat-service
+          console.log('Conversa excluída via chat-service com sucesso')
           setConversations(prev => prev.filter(conv => conv.id !== conversationId))
           showNotification('Conversa excluída com sucesso!', 'success')
           
@@ -294,24 +298,34 @@ export function ConversationSidebar({
           
         } catch (chatError) {
           chatServiceError = chatError
+          console.warn('Chat-service também falhou:', chatError)
         }
       }
 
-      // Se chegou aqui, ambos falharam
-      throw new Error(`API: ${apiError?.message || 'desconhecido'} | ChatService: ${chatServiceError?.message || 'desconhecido'}`)
+      // Método 3: Exclusão apenas local como último recurso
+      console.log('Tentando exclusão apenas local...')
+      
+      // Remover da lista local mesmo que o servidor tenha falhado
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId))
+      
+      // Mostrar aviso de que foi removida apenas localmente
+      showNotification(
+        'Conversa removida da lista (pode reaparecer no próximo carregamento). Tente novamente se necessário.', 
+        'error'
+      )
+      
+             return // Não jogar erro, pois fizemos exclusão local
 
     } catch (error) {
+      // Este bloco só seria executado se houvesse um erro inesperado
+      console.error('Erro inesperado na exclusão:', error)
+      
       // Recarregar lista para restaurar estado correto
       loadConversations()
       
       // Mostrar erro para o usuário
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
-      showNotification(`Erro ao excluir conversa: ${errorMessage}`, 'error')
-      
-      // Log apenas em desenvolvimento
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erro ao excluir conversa:', error)
-      }
+      const errorMessage = error instanceof Error ? error.message : 'Erro inesperado'
+      showNotification(`Erro inesperado: ${errorMessage}`, 'error')
     } finally {
       // Remover do estado "excluindo"
       setDeletingConversations(prev => {

@@ -411,32 +411,56 @@ class ChatService {
       const userId = sessionManager.getUserId()
       
       if (!userId) {
+        console.warn('deleteConversation: userId não encontrado')
         return false
       }
 
-      if (!conversationId) {
+      if (!conversationId || conversationId.trim() === '') {
+        console.warn('deleteConversation: conversationId inválido')
         return false
       }
 
-      // Método 1: Tentar exclusão direta via RLS
+      // Log de debug
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Tentando excluir conversa: ${conversationId} para usuário: ${userId}`)
+      }
+
+      // Método 1: Tentar exclusão direta via RLS primeiro
       try {
         // Verificar se a conversa existe e pertence ao usuário
-        const { data: existingConversation, error: checkError } = await supabase
+        const { data: existingConversations, error: checkError } = await supabase
           .from('chat_conversations')
           .select('id, user_id, title')
           .eq('id', conversationId)
           .eq('user_id', userId)
-          .single()
 
         if (checkError) {
+          console.warn(`Verificação RLS falhou: ${checkError.message}`)
           throw new Error(`Verificação falhou: ${checkError.message}`)
         }
 
-        if (!existingConversation) {
+        if (!existingConversations || existingConversations.length === 0) {
+          console.warn('Conversa não encontrada via RLS')
           throw new Error('Conversa não encontrada')
         }
 
-        // Excluir a conversa (mensagens serão excluídas automaticamente por CASCADE)
+        // Se há múltiplas conversas com o mesmo ID (problema de dados), usar a primeira
+        const existingConversation = existingConversations[0]
+        if (existingConversations.length > 1) {
+          console.warn(`Encontradas ${existingConversations.length} conversas com o mesmo ID. Usando a primeira.`)
+        }
+
+        // Tentar excluir mensagens primeiro
+        const { error: messagesDeleteError } = await supabase
+          .from('chat_messages')
+          .delete()
+          .eq('conversation_id', conversationId)
+
+        if (messagesDeleteError) {
+          console.warn(`Falha ao excluir mensagens: ${messagesDeleteError.message}`)
+        }
+
+        // Excluir a conversa
         const { error: deleteError } = await supabase
           .from('chat_conversations')
           .delete()
@@ -448,55 +472,110 @@ class ChatService {
         }
         
         // Verificar se realmente foi excluída
-        const { data: deletedCheck } = await supabase
+        const { data: deletedCheck, error: verifyError } = await supabase
           .from('chat_conversations')
           .select('id')
           .eq('id', conversationId)
-          .single()
 
-        if (deletedCheck) {
-          throw new Error('Verificação pós-exclusão falhou')
+        if (verifyError && verifyError.code === 'PGRST116') {
+          // PGRST116 = "not found" é o que queremos (conversa foi excluída)
+          console.log('Exclusão RLS bem-sucedida')
+          this.removeConversationFromLocalStorage(conversationId)
+          this.removeMessagesFromLocalStorage(conversationId)
+          return true
         }
-        
-        // Remover do localStorage local também
+
+        if (!verifyError && (!deletedCheck || deletedCheck.length === 0)) {
+          // Nenhum erro e nenhum resultado = conversa foi excluída
+          console.log('Exclusão RLS bem-sucedida')
+          this.removeConversationFromLocalStorage(conversationId)
+          this.removeMessagesFromLocalStorage(conversationId)
+          return true
+        }
+
+        if (deletedCheck && deletedCheck.length > 0) {
+          throw new Error('Conversa ainda existe após exclusão')
+        }
+
+        console.log('Exclusão RLS bem-sucedida')
         this.removeConversationFromLocalStorage(conversationId)
         this.removeMessagesFromLocalStorage(conversationId)
-
         return true
 
       } catch (rlsError) {
-        // Método 2: Fallback usando função admin
+        console.warn(`Exclusão RLS falhou: ${rlsError}`)
+        
+        // Método 2: Tentar função force_delete primeiro (mais eficaz)
         try {
-          const { data: result, error: adminError } = await supabase
-            .rpc('delete_conversation_admin', {
+          const { data: forceResult, error: forceError } = await supabase
+            .rpc('force_delete_conversation', {
               conversation_id_param: conversationId,
               user_id_param: userId
             })
 
-          if (adminError) {
-            throw new Error(`Função admin falhou: ${adminError.message}`)
+          if (forceError) {
+            console.warn(`Função force delete falhou: ${forceError.message}`)
+            throw new Error(`Force delete falhou: ${forceError.message}`)
           }
-          
-          if (!result) {
-            throw new Error('Função admin retornou false')
+
+          if (!forceResult) {
+            console.warn('Force delete retornou false')
+            throw new Error('Force delete retornou false')
           }
-          
-          // Remover do localStorage local também
+
+          console.log('Exclusão via force delete bem-sucedida')
           this.removeConversationFromLocalStorage(conversationId)
           this.removeMessagesFromLocalStorage(conversationId)
-
           return true
 
-        } catch (adminError) {
-          throw adminError
+        } catch (forceError) {
+          console.warn(`Force delete falhou: ${forceError}`)
+          
+          // Método 3: Fallback para função admin
+          try {
+            const { data: result, error: adminError } = await supabase
+              .rpc('delete_conversation_admin', {
+                conversation_id_param: conversationId,
+                user_id_param: userId
+              })
+
+            if (adminError) {
+              console.warn(`Função admin falhou: ${adminError.message}`)
+              throw new Error(`Função admin falhou: ${adminError.message}`)
+            }
+            
+            if (!result) {
+              console.warn('Função admin retornou false')
+              throw new Error('Função admin retornou false')
+            }
+            
+            console.log('Exclusão via função admin bem-sucedida')
+            this.removeConversationFromLocalStorage(conversationId)
+            this.removeMessagesFromLocalStorage(conversationId)
+            return true
+
+          } catch (adminError) {
+            console.error(`Todos os métodos de exclusão falharam: ${adminError}`)
+            
+            // Método 4: Exclusão apenas local como último recurso
+            console.log('Tentando exclusão apenas local')
+            this.removeConversationFromLocalStorage(conversationId)
+            this.removeMessagesFromLocalStorage(conversationId)
+            
+            // Retornar false para indicar que a exclusão no servidor falhou
+            // mas a exclusão local foi feita
+            return false
+          }
         }
       }
 
     } catch (error) {
-      // Log apenas em desenvolvimento
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erro na exclusão de conversa:', error)
-      }
+      console.error('Erro geral na exclusão de conversa:', error)
+      
+      // Como último recurso, limpar apenas localmente
+      this.removeConversationFromLocalStorage(conversationId)
+      this.removeMessagesFromLocalStorage(conversationId)
+      
       return false
     }
   }
