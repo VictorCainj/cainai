@@ -34,7 +34,6 @@ class SessionManager {
         try {
           this.currentUser = JSON.parse(savedSession)
         } catch (error) {
-          console.log('Erro ao carregar sessão salva, criando nova...', error)
           this.createAnonymousUser()
         }
       } else {
@@ -102,7 +101,7 @@ class SessionManager {
         return data
       }
     } catch (error) {
-      console.log('Perfil não pôde ser salvo no banco, mantendo localmente:', error)
+      // Silent fallback to local
     }
 
     // Fallback: salvar apenas localmente
@@ -133,7 +132,6 @@ class SessionManager {
       this.saveSession()
       return true
     } catch (error) {
-      console.log('Erro ao verificar autenticação:', error)
       return false
     }
   }
@@ -159,13 +157,11 @@ class SessionManager {
         .eq('user_id', this.currentUser.id)
 
       if (error) {
-        console.log('Erro ao transferir conversas:', error)
         return false
       }
 
       return true
     } catch (error) {
-      console.log('Erro na transferência de dados:', error)
       return false
     }
   }
@@ -178,6 +174,8 @@ class SessionManager {
       hasValidSession: !!this.currentUser
     }
   }
+
+
 }
 
 export const sessionManager = SessionManager.getInstance()

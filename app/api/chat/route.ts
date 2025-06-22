@@ -124,7 +124,7 @@ async function generateImageIfRequested(messageContent: string): Promise<{hasIma
       }
     }
   } catch (error) {
-    console.error('DALL-E error:', error)
+    // Silent fail
   }
   
   return { hasImage: false }
@@ -282,6 +282,7 @@ export async function POST(request: NextRequest) {
       message: finalMessage,
       imageUrl: imageUrl,
       conversationId: conversation.id,
+      conversationTitle: conversation.title,
       success: true,
       isTemporary: isTemporaryMode,
       usage: completion.usage,
@@ -292,8 +293,6 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Chat API Error:', error)
-    
     try {
       if (!process.env.OPENAI_API_KEY) {
         throw new Error('OpenAI API key not configured')
@@ -327,8 +326,6 @@ export async function POST(request: NextRequest) {
       })
 
     } catch (fallbackError) {
-      console.error('API Error:', fallbackError)
-      
       return NextResponse.json(
         { 
           error: 'Serviço temporariamente indisponível',

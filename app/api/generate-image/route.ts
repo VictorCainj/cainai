@@ -53,8 +53,6 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('DALL-E Error:', error)
-    
     return NextResponse.json(
       { 
         error: 'Falha ao gerar imagem',

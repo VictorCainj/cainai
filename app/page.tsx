@@ -1,39 +1,26 @@
 'use client'
 
-import React, { useRef } from 'react'
-import { ChatInterface } from '@/components/chat/chat-interface'
-import { Sidebar } from '@/components/sidebar/sidebar'
+import React from 'react'
+import { useAuth } from '@/lib/auth-context'
+import LandingPage from './landing/page'
 
 export default function Home() {
-  const chatRef = useRef<{
-    startNewConversation: () => void
-    loadConversation: (id: string) => void
-    conversationId: string | null
-  }>(null)
+  const { loading } = useAuth()
 
-  const handleNewConversation = () => {
-    chatRef.current?.startNewConversation()
+  // Mostrar loading enquanto verifica autenticação
+  if (loading) {
+    return (
+      <div className="h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <div className="w-8 h-8 text-white">⚡</div>
+          </div>
+          <p className="text-white text-lg">Carregando CDI Chat...</p>
+        </div>
+      </div>
+    )
   }
 
-  const handleLoadConversation = (id: string) => {
-    chatRef.current?.loadConversation(id)
-  }
-
-  return (
-    <div className="flex h-screen bg-gray-900 text-white">
-      {/* Sidebar */}
-      <Sidebar 
-        onNewConversation={handleNewConversation}
-        onLoadConversation={handleLoadConversation}
-        currentConversationId={chatRef.current?.conversationId || null}
-      />
-      
-      {/* Chat Principal */}
-      <main className="flex-1 flex flex-col">
-        <ChatInterface 
-          ref={chatRef}
-        />
-      </main>
-    </div>
-  )
+  // Mostrar landing page para todos os usuários
+  return <LandingPage />
 } 

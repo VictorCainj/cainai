@@ -11,12 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 })
     }
 
-    console.log('Buscando conversas para usuário:', userId)
-
-    // Usar o serviço de chat para buscar conversas
     const conversations = await chatService.getUserConversations(userId)
-
-    console.log(`Encontradas ${conversations.length} conversas`)
 
     return NextResponse.json({
       conversations,
@@ -24,7 +19,6 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Erro na API de conversas:', error)
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
     
     return NextResponse.json(

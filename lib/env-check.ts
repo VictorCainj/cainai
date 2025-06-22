@@ -27,8 +27,6 @@ export function checkEnvironment(): EnvConfig {
   if (typeof window !== 'undefined') {
     config.supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || null
     config.supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || null
-    
-    // Service key não é acessível no cliente (e não deveria ser)
     config.supabaseServiceKey = 'hidden' // Sempre hidden no cliente
   } else {
     // Lado do servidor
@@ -46,25 +44,6 @@ export function checkEnvironment(): EnvConfig {
   config.canPersist = true // SEMPRE pode persistir localmente
   config.canChat = config.isOpenAIConfigured
 
-  return config
-}
-
-export function printEnvironmentStatus() {
-  const config = checkEnvironment()
-  
-  console.log('🔧 === STATUS DA CONFIGURAÇÃO ===')
-  console.log(`📍 Supabase URL: ${config.supabaseUrl ? '✅ Configurada' : '❌ Não configurada'}`)
-  console.log(`🔑 Supabase Anon Key: ${config.supabaseAnonKey ? '✅ Configurada' : '❌ Não configurada'}`)
-  console.log(`🤖 OpenAI Key: ${config.isOpenAIConfigured ? '✅ Configurada' : '❌ Não configurada'}`)
-  console.log(`💾 Persistência: ${config.canPersist ? '✅ Disponível (local)' : '❌ Indisponível'}`)
-  console.log(`💬 Chat: ${config.canChat ? '✅ Disponível' : '❌ Requer OpenAI Key'}`)
-  
-  if (config.isSupabaseConfigured) {
-    console.log('🎯 Modo: COMPLETO (Supabase + Local)')
-  } else {
-    console.log('⚠️ Modo: LOCAL (apenas localStorage)')
-  }
-  
   return config
 }
 
