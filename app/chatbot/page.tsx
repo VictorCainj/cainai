@@ -96,24 +96,8 @@ export default function ChatbotPage() {
   }
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      {/* Header Principal */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 shadow-sm flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-800">ChatBot IA</h1>
-              <p className="text-xs text-gray-500">GPT-4 Turbo + DALL-E 3 + TTS Avançado</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Layout Principal */}
-      <div className="flex flex-1 min-h-0">
+    <div className="h-screen bg-gray-50 flex overflow-hidden">
+      {/* Layout Principal - Removido header redundante para maximizar espaço do chat */}
         {/* Sidebar de Conversas */}
         <ConversationSidebar
           currentConversationId={currentConversationId}
@@ -135,7 +119,6 @@ export default function ChatbotPage() {
             <ChatInterface ref={chatInterfaceRef} />
           </div>
         </div>
-      </div>
     </div>
   )
 } 

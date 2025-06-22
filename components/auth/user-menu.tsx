@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button'
 interface UserMenuProps {
   onOpenSettings?: () => void
   onOpenDashboard?: () => void
+  variant?: 'dark' | 'light'
 }
 
-export function UserMenu({ onOpenSettings, onOpenDashboard }: UserMenuProps) {
+export function UserMenu({ onOpenSettings, onOpenDashboard, variant = 'dark' }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const { user, profile, logout } = useAuth()
   const menuRef = useRef<HTMLDivElement>(null)
@@ -65,53 +66,66 @@ export function UserMenu({ onOpenSettings, onOpenDashboard }: UserMenuProps) {
       <Button
         variant="ghost"
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 rounded-lg hover:bg-gray-800 transition-all"
+        className={`${variant === 'light' ? 'p-1.5' : 'p-2'} rounded-lg transition-all ${
+          variant === 'light' 
+            ? 'hover:bg-gray-100 text-gray-700' 
+            : 'hover:bg-gray-800 text-white'
+        }`}
       >
-        <div className="flex items-center space-x-3">
+        <div className={`flex items-center ${variant === 'light' ? 'space-x-2' : 'space-x-3'}`}>
           {/* Avatar */}
           <div className="relative">
             {getAvatarUrl() ? (
               <img
                 src={getAvatarUrl()}
                 alt={getDisplayName()}
-                className="w-8 h-8 rounded-full object-cover"
+                className={`${variant === 'light' ? 'w-7 h-7' : 'w-8 h-8'} rounded-full object-cover`}
               />
             ) : (
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">
+              <div className={`${variant === 'light' ? 'w-7 h-7' : 'w-8 h-8'} bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center`}>
+                <span className={`text-white font-medium ${variant === 'light' ? 'text-xs' : 'text-sm'}`}>
                   {getInitials()}
                 </span>
               </div>
             )}
             
-            {/* Status online */}
-            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full"></div>
+
           </div>
 
           {/* Nome e email */}
           <div className="hidden md:block text-left">
-            <p className="text-sm font-medium text-white truncate max-w-32">
+            <p className={`${variant === 'light' ? 'text-xs' : 'text-sm'} font-medium truncate max-w-32 ${
+              variant === 'light' ? 'text-gray-700' : 'text-white'
+            }`}>
               {getDisplayName()}
             </p>
-            <p className="text-xs text-gray-400 truncate max-w-32">
+            <p className={`${variant === 'light' ? 'text-xs' : 'text-xs'} truncate max-w-32 ${
+              variant === 'light' ? 'text-gray-500' : 'text-gray-400'
+            }`}>
               {user.email}
             </p>
           </div>
 
           {/* Chevron */}
           <ChevronDown 
-            className={`w-4 h-4 text-gray-400 transition-transform ${
-              isOpen ? 'rotate-180' : ''
-            }`}
+            className={`${variant === 'light' ? 'w-3 h-3' : 'w-4 h-4'} transition-transform ${
+              variant === 'light' ? 'text-gray-500' : 'text-gray-400'
+            } ${isOpen ? 'rotate-180' : ''}`}
           />
         </div>
       </Button>
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-64 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50 py-2">
+        <div className={`absolute right-0 top-full mt-2 w-64 rounded-xl shadow-2xl z-50 py-2 ${
+          variant === 'light' 
+            ? 'bg-white border border-gray-200' 
+            : 'bg-gray-800 border border-gray-700'
+        }`}>
           {/* Header do menu */}
-          <div className="px-4 py-3 border-b border-gray-700">
+          <div className={`px-4 py-3 border-b ${
+            variant === 'light' ? 'border-gray-200' : 'border-gray-700'
+          }`}>
             <div className="flex items-center space-x-3">
               {getAvatarUrl() ? (
                 <img
@@ -127,14 +141,18 @@ export function UserMenu({ onOpenSettings, onOpenDashboard }: UserMenuProps) {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-white font-medium truncate">
+                <p className={`font-medium truncate ${
+                  variant === 'light' ? 'text-gray-800' : 'text-white'
+                }`}>
                   {getDisplayName()}
                 </p>
-                <p className="text-gray-400 text-sm truncate">
+                <p className={`text-sm truncate ${
+                  variant === 'light' ? 'text-gray-600' : 'text-gray-400'
+                }`}>
                   {user.email}
                 </p>
                 {profile?.username && (
-                  <p className="text-blue-400 text-xs">
+                  <p className="text-blue-500 text-xs">
                     @{profile.username}
                   </p>
                 )}
@@ -151,20 +169,32 @@ export function UserMenu({ onOpenSettings, onOpenDashboard }: UserMenuProps) {
                   onOpenDashboard()
                   setIsOpen(false)
                 }}
-                className="w-full px-4 py-2 text-left hover:bg-gray-700 transition-colors flex items-center space-x-3"
+                className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 ${
+                  variant === 'light' 
+                    ? 'hover:bg-gray-100 text-gray-700' 
+                    : 'hover:bg-gray-700 text-white'
+                }`}
               >
-                <BarChart3 className="w-4 h-4 text-gray-400" />
-                <span className="text-white">Dashboard</span>
+                <BarChart3 className={`w-4 h-4 ${
+                  variant === 'light' ? 'text-gray-500' : 'text-gray-400'
+                }`} />
+                <span>Dashboard</span>
               </button>
             )}
 
             {/* Conversas */}
             <button
               onClick={() => setIsOpen(false)}
-              className="w-full px-4 py-2 text-left hover:bg-gray-700 transition-colors flex items-center space-x-3"
+              className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 ${
+                variant === 'light' 
+                  ? 'hover:bg-gray-100 text-gray-700' 
+                  : 'hover:bg-gray-700 text-white'
+              }`}
             >
-              <MessageSquare className="w-4 h-4 text-gray-400" />
-              <span className="text-white">Minhas Conversas</span>
+              <MessageSquare className={`w-4 h-4 ${
+                variant === 'light' ? 'text-gray-500' : 'text-gray-400'
+              }`} />
+              <span>Minhas Conversas</span>
             </button>
 
             {/* Configurações */}
@@ -174,33 +204,47 @@ export function UserMenu({ onOpenSettings, onOpenDashboard }: UserMenuProps) {
                   onOpenSettings()
                   setIsOpen(false)
                 }}
-                className="w-full px-4 py-2 text-left hover:bg-gray-700 transition-colors flex items-center space-x-3"
+                className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 ${
+                  variant === 'light' 
+                    ? 'hover:bg-gray-100 text-gray-700' 
+                    : 'hover:bg-gray-700 text-white'
+                }`}
               >
-                <Settings className="w-4 h-4 text-gray-400" />
-                <span className="text-white">Configurações</span>
+                <Settings className={`w-4 h-4 ${
+                  variant === 'light' ? 'text-gray-500' : 'text-gray-400'
+                }`} />
+                <span>Configurações</span>
               </button>
             )}
 
             {/* Upgrade (se não for premium) */}
             <button
               onClick={() => setIsOpen(false)}
-              className="w-full px-4 py-2 text-left hover:bg-gray-700 transition-colors flex items-center space-x-3"
+              className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 ${
+                variant === 'light' 
+                  ? 'hover:bg-gray-100 text-gray-700' 
+                  : 'hover:bg-gray-700 text-white'
+              }`}
             >
-              <Crown className="w-4 h-4 text-yellow-400" />
-              <span className="text-white">Upgrade para Pro</span>
-              <span className="ml-auto bg-yellow-600 text-yellow-100 text-xs px-2 py-1 rounded-full">
+              <Crown className="w-4 h-4 text-yellow-500" />
+              <span>Upgrade para Pro</span>
+              <span className="ml-auto bg-yellow-500 text-yellow-100 text-xs px-2 py-1 rounded-full">
                 Em breve
               </span>
             </button>
           </div>
 
           {/* Divisor */}
-          <div className="border-t border-gray-700 my-2"></div>
+          <div className={`border-t my-2 ${
+            variant === 'light' ? 'border-gray-200' : 'border-gray-700'
+          }`}></div>
 
           {/* Logout */}
           <button
             onClick={handleLogout}
-            className="w-full px-4 py-2 text-left hover:bg-red-900/50 transition-colors flex items-center space-x-3 text-red-400"
+            className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 text-red-500 ${
+              variant === 'light' ? 'hover:bg-red-50' : 'hover:bg-red-900/50'
+            }`}
           >
             <LogOut className="w-4 h-4" />
             <span>Sair</span>

@@ -57,8 +57,11 @@ export const ChatInterface = React.forwardRef<
   const [retryCount, setRetryCount] = useState(0)
   const [audioState, setAudioState] = useState<AudioState>({})
   const [showTTSHint, setShowTTSHint] = useState(false)
+  const [typewriterText, setTypewriterText] = useState<string>('')
+  const [typewriterMessageId, setTypewriterMessageId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const typewriterIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Usar o session manager para obter userId
   const userId = sessionManager.getUserId()
@@ -87,7 +90,7 @@ export const ChatInterface = React.forwardRef<
         setMessages([{
           id: 'welcome',
           role: 'assistant',
-          content: '🧠 **Olá! Sou seu assistente com super memória, powered by GPT-4 Turbo.**\n\nMinhas novas capacidades incluem:\n\n• 🎯 **Memória Contextual**: Lembro de tudo que discutimos\n• 🔄 **Conexões Inteligentes**: Conecto informações passadas\n• 📋 **Acompanhamento**: Monitoro projetos em andamento\n• 🎓 **Aprendizado Contínuo**: Melhoro a cada interação\n• 🎨 **Geração de Imagens**: Posso criar imagens com DALL-E 3\n• 🎵 **Text-to-Speech Avançado**: Ouça minhas respostas com voz entusiasmada! Clique no botão ▶️\n\n**Para solicitar uma imagem, simplesmente peça:**\n*"Crie uma imagem de..." ou "Desenhe..." ou "Faça um logo..."*\n\n**Para ouvir minhas respostas:**\n*Clique no botão ▶️ que aparece nas minhas mensagens*\n\n**Como posso usar minha super memória, criatividade visual e voz para te ajudar hoje?**',
+          content: '**Olá! Sou seu assistente com super memória, powered by GPT-4 Turbo.**\n\nMinhas novas capacidades incluem:\n\n🎯 **Memória Contextual**: Lembro de tudo que discutimos\n\n🔄 **Conexões Inteligentes**: Conecto informações passadas\n\n📋 **Acompanhamento**: Monitoro projetos em andamento\n\n🎓 **Aprendizado Contínuo**: Melhoro a cada interação\n\n🎨 **Geração de Imagens**: Posso criar imagens com DALL-E 3\n\n🎵 **Text-to-Speech Avançado**: Ouça minhas respostas com voz entusiasmada! Clique no botão ▶️\n\n**Para solicitar uma imagem, simplesmente peça:**\n*"Crie uma imagem de..." ou "Desenhe..." ou "Faça um logo..."*\n\n**Para ouvir minhas respostas:**\n*Clique no botão ▶️ que aparece nas minhas mensagens*\n\n**Como posso usar minha super memória, criatividade visual e voz para te ajudar hoje?**',
           timestamp: new Date()
         }])
       }
@@ -121,6 +124,13 @@ export const ChatInterface = React.forwardRef<
 
   const loadConversation = async (convId: string) => {
     if (loadingState.loadingConversation || loadingState.sendingMessage) return
+
+    // Limpar typewriter se estiver ativo
+    if (typewriterIntervalRef.current) {
+      clearInterval(typewriterIntervalRef.current)
+      setTypewriterMessageId(null)
+      setTypewriterText('')
+    }
 
     try {
       updateLoadingState('loadingConversation', true)
@@ -165,13 +175,20 @@ export const ChatInterface = React.forwardRef<
   const startNewConversation = () => {
     if (isAnyLoading) return
 
+    // Limpar typewriter se estiver ativo
+    if (typewriterIntervalRef.current) {
+      clearInterval(typewriterIntervalRef.current)
+      setTypewriterMessageId(null)
+      setTypewriterText('')
+    }
+
     setConversationId(null)
     setConnectionStatus('connected')
     setRetryCount(0)
     setMessages([{
       id: 'welcome',
       role: 'assistant',
-      content: '🧠 **Olá! Sou seu assistente com super memória, powered by GPT-4 Turbo.**\n\nMinhas novas capacidades incluem:\n\n• 🎯 **Memória Contextual**: Lembro de tudo que discutimos\n• 🔄 **Conexões Inteligentes**: Conecto informações passadas\n• 📋 **Acompanhamento**: Monitoro projetos em andamento\n• 🎓 **Aprendizado Contínuo**: Melhoro a cada interação\n• 🎨 **Geração de Imagens**: Posso criar imagens com DALL-E 3\n• 🎵 **Text-to-Speech Avançado**: Ouça minhas respostas com voz entusiasmada! Clique no botão ▶️\n\n**Para solicitar uma imagem, simplesmente peça:**\n*"Crie uma imagem de..." ou "Desenhe..." ou "Faça um logo..."*\n\n**Para ouvir minhas respostas:**\n*Clique no botão ▶️ que aparece nas minhas mensagens*\n\n**Como posso usar minha super memória, criatividade visual e voz para te ajudar hoje?**',
+      content: '**Olá! Como posso te ajudar hoje?**\n\nSou seu assistente com super memória - posso lembrar de tudo que discutimos, gerar imagens e muito mais!\n\n✨ **Dica**: Digite sua pergunta ou peça para criar uma imagem',
       timestamp: new Date()
     }])
     
@@ -331,10 +348,41 @@ export const ChatInterface = React.forwardRef<
     setAudioState({})
   }
 
-  // Limpar áudios quando componente desmonta
+  // Função para efeito typewriter
+  const startTypewriter = (text: string, messageId: string) => {
+    if (typewriterIntervalRef.current) {
+      clearInterval(typewriterIntervalRef.current)
+    }
+    
+    setTypewriterMessageId(messageId)
+    setTypewriterText('')
+    
+    let currentIndex = 0
+    typewriterIntervalRef.current = setInterval(() => {
+      if (currentIndex <= text.length) {
+        setTypewriterText(text.slice(0, currentIndex))
+        currentIndex++
+        scrollToBottom()
+      } else {
+        clearInterval(typewriterIntervalRef.current!)
+        setTypewriterMessageId(null)
+        setTypewriterText('')
+        
+        // Atualizar a mensagem com o texto completo
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId ? { ...msg, content: text } : msg
+        ))
+      }
+    }, 30) // Velocidade rápida - 30ms por letra
+  }
+
+  // Limpar áudios e typewriter quando componente desmonta
   useEffect(() => {
     return () => {
       stopAllAudio()
+      if (typewriterIntervalRef.current) {
+        clearInterval(typewriterIntervalRef.current)
+      }
     }
   }, [])
 
@@ -391,9 +439,15 @@ export const ChatInterface = React.forwardRef<
         imageUrl: data.imageUrl // Adicionar URL da imagem se gerada
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      // Adicionar mensagem primeiro (vazia para começar o typewriter)
+      setMessages(prev => [...prev, { ...assistantMessage, content: '' }])
       setConnectionStatus('connected')
       setRetryCount(0)
+      
+      // Iniciar efeito typewriter
+      setTimeout(() => {
+        startTypewriter(data.message, assistantMessage.id)
+      }, 200) // Pequeno delay para suavidade
       
       // Mostrar dica TTS na primeira resposta real da IA
       if (messages.filter(m => m.role === 'assistant' && m.id !== 'welcome').length === 0) {
@@ -499,7 +553,7 @@ export const ChatInterface = React.forwardRef<
         } else if (match[3]) {
           // Texto tachado ~~texto~~
           const strikeClass = messageRole === 'user' 
-            ? "line-through text-blue-200 opacity-75" 
+            ? "line-through text-white/70 opacity-75" 
             : "line-through text-gray-500 opacity-75"
           parts.push(
             <span key={keyIndex++} className={strikeClass}>
@@ -509,7 +563,7 @@ export const ChatInterface = React.forwardRef<
         } else if (match[4]) {
           // Negrito + Itálico ***texto***
           const boldItalicClass = messageRole === 'user' 
-            ? "font-bold italic text-blue-100" 
+            ? "font-bold italic text-white" 
             : "font-bold italic text-gray-900"
           parts.push(
             <strong key={keyIndex++} className={boldItalicClass}>
@@ -519,7 +573,7 @@ export const ChatInterface = React.forwardRef<
         } else if (match[6]) {
           // Negrito **texto**
           const boldClass = messageRole === 'user' 
-            ? "font-semibold text-blue-100" 
+            ? "font-semibold text-white" 
             : "font-semibold text-gray-900"
           parts.push(
             <strong key={keyIndex++} className={boldClass}>
@@ -529,7 +583,7 @@ export const ChatInterface = React.forwardRef<
         } else if (match[8]) {
           // Negrito alternativo __texto__
           const boldClass = messageRole === 'user' 
-            ? "font-semibold text-blue-100" 
+            ? "font-semibold text-white" 
             : "font-semibold text-gray-900"
           parts.push(
             <strong key={keyIndex++} className={boldClass}>
@@ -539,7 +593,7 @@ export const ChatInterface = React.forwardRef<
         } else if (match[10]) {
           // Itálico _texto_
           const italicClass = messageRole === 'user' 
-            ? "italic text-blue-200" 
+            ? "italic text-white/90" 
             : "italic text-gray-700"
           parts.push(
             <em key={keyIndex++} className={italicClass}>
@@ -549,7 +603,7 @@ export const ChatInterface = React.forwardRef<
         } else if (match[12]) {
           // Itálico *texto*
           const italicClass = messageRole === 'user' 
-            ? "italic text-blue-200" 
+            ? "italic text-white/90" 
             : "italic text-gray-700"
           parts.push(
             <em key={keyIndex++} className={italicClass}>
@@ -578,7 +632,7 @@ export const ChatInterface = React.forwardRef<
           const level = line.match(/^#+/)?.[0].length || 1
           const headerText = line.replace(/^#+\s/, '')
           const headerClass = messageRole === 'user' 
-            ? `text-blue-100 font-bold my-2 ${level === 1 ? 'text-lg' : level === 2 ? 'text-base' : 'text-sm'}` 
+            ? `text-white font-bold my-2 ${level === 1 ? 'text-lg' : level === 2 ? 'text-base' : 'text-sm'}` 
             : `text-gray-900 font-bold my-2 ${level === 1 ? 'text-lg' : level === 2 ? 'text-base' : 'text-sm'}`
           
           return (
@@ -593,7 +647,7 @@ export const ChatInterface = React.forwardRef<
           const bulletText = line.replace(/^\s*[\*\-•]\s/, '')
           return (
             <div key={index} className="flex items-start space-x-2 my-1">
-              <span className={messageRole === 'user' ? "text-blue-200 mt-1" : "text-blue-400 mt-1"}>•</span>
+              <span className={messageRole === 'user' ? "text-white/80 mt-1" : "text-blue-400 mt-1"}>•</span>
               <span>{processInlineFormatting(bulletText)}</span>
             </div>
           )
@@ -606,7 +660,7 @@ export const ChatInterface = React.forwardRef<
             const [, number, listText] = numberMatch
             return (
               <div key={index} className="flex items-start space-x-2 my-1">
-                <span className={messageRole === 'user' ? "text-blue-200 mt-1" : "text-blue-400 mt-1"}>{number}.</span>
+                <span className={messageRole === 'user' ? "text-white/80 mt-1" : "text-blue-400 mt-1"}>{number}.</span>
                 <span>{processInlineFormatting(listText)}</span>
               </div>
             )
@@ -616,7 +670,7 @@ export const ChatInterface = React.forwardRef<
         // Citações >
         if (line.startsWith('> ')) {
           const quoteClass = messageRole === 'user' 
-            ? "border-l-4 border-blue-300 pl-4 text-blue-200 italic my-2" 
+            ? "border-l-4 border-white/30 pl-4 text-white/90 italic my-2" 
             : "border-l-4 border-blue-400 pl-4 text-gray-600 italic my-2"
           
           return (
@@ -638,7 +692,7 @@ export const ChatInterface = React.forwardRef<
         // Linhas completamente em negrito (compatibilidade com código anterior)
         if (line.startsWith('**') && line.endsWith('**') && line.length > 4) {
           const boldClass = messageRole === 'user' 
-            ? "font-semibold text-blue-100 my-1" 
+            ? "font-semibold text-white my-1" 
             : "font-semibold text-gray-900 my-1"
           
           return (
@@ -696,23 +750,23 @@ export const ChatInterface = React.forwardRef<
   }
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 to-blue-50 relative">
+    <div className="flex flex-col h-full bg-gradient-to-br from-gray-50 via-[#f7f7f8] to-gray-100 relative">
       {/* Loading Overlay */}
       {loadingState.loadingConversation && (
         <div className="absolute inset-0 bg-white/70 backdrop-blur-md z-50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8 flex items-center space-x-4">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            <span className="text-gray-700 font-medium text-lg">Carregando conversa...</span>
+          <div className="bg-white rounded-xl enhanced-shadow-xl border border-gray-200 p-6 flex items-center space-x-3">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-600" />
+            <span className="text-gray-700 font-medium">Carregando conversa...</span>
           </div>
         </div>
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto py-6 custom-scrollbar">
         {/* Dica TTS */}
         {showTTSHint && (
           <div className="fixed top-24 right-8 z-50 animate-fade-in">
-            <div className="bg-blue-500 text-white p-6 rounded-2xl shadow-xl shadow-blue-500/25 max-w-sm border border-blue-400/20">
+            <div className="bg-blue-500 text-white p-6 rounded-2xl enhanced-shadow-xl max-w-sm border border-blue-400/20">
               <div className="flex items-start space-x-4">
                 <div className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
                   <Play className="w-5 h-5 text-white" />
@@ -734,117 +788,155 @@ export const ChatInterface = React.forwardRef<
           </div>
         )}
         
-        {messages.map((message, index) => (
-          <div 
-            key={message.id} 
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
-            style={{ animationDelay: `${index * 0.1}s` }}
-          >
-            <div className={`flex items-start space-x-4 max-w-4xl ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md ${
+        <div className="max-w-4xl mx-auto px-6 space-y-6">
+          {messages.map((message, index) => (
+            <div 
+              key={message.id} 
+              className={`flex animate-fade-in ${
+                message.role === 'user' ? 'justify-end' : 'justify-start'
+              }`}
+              style={{ animationDelay: `${index * 0.1}s` }}
+            >
+              <div className={`max-w-2xl ${
                 message.role === 'user' 
-                  ? 'bg-gradient-to-br from-blue-500 to-blue-600' 
-                  : 'bg-gradient-to-br from-emerald-500 to-emerald-600'
+                  ? 'bg-blue-500 text-white rounded-2xl px-6 py-4 enhanced-shadow-lg'
+                  : 'bg-white rounded-2xl border border-gray-200 enhanced-shadow-lg px-6 py-4'
               }`}>
-                {message.role === 'user' ? (
-                  <User className="w-5 h-5 text-white" />
-                ) : (
-                  <Bot className="w-5 h-5 text-white" />
-                )}
-              </div>
-              <div className={`rounded-2xl px-6 py-4 relative group shadow-sm ${
-                message.role === 'user'
-                  ? 'bg-blue-500 text-white shadow-blue-500/20'
-                  : 'bg-white text-gray-800 border border-gray-100 shadow-gray-200/50'
-              }`}>
-                <div className="text-sm leading-relaxed">
-                  {renderMessage(message.content, message.role)}
-                  {/* Exibir imagem se existir */}
-                  {message.imageUrl && (
-                    <div className="mt-6">
-                      <div className="relative rounded-2xl overflow-hidden border border-gray-200 shadow-lg">
-                        <Image
-                          src={message.imageUrl} 
-                          alt="Imagem gerada por DALL-E 3"
-                          className="w-full max-w-md mx-auto block rounded-2xl"
-                          width={512}
-                          height={512}
-                          priority={true}
-                          placeholder="blur"
-                          blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkbHB0eH/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAAABAv/EABRAQEAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKljhYa4NUv2EDaKAH/2Q=="
-                          onLoad={() => scrollToBottom()}
-                        />
-                        <div className="absolute bottom-3 left-3 bg-black/60 text-white px-3 py-1 rounded-full text-xs font-medium">
-                          🎨 DALL-E 3
+                <div className="flex items-start space-x-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    message.role === 'user' 
+                      ? 'bg-white/20 text-white' 
+                      : 'bg-green-500 text-white'
+                  }`}>
+                    {message.role === 'user' ? (
+                      <User className="w-4 h-4" />
+                    ) : (
+                      <Bot className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm leading-7 ${
+                      message.role === 'user' ? 'text-white' : 'text-gray-800'
+                    }`}>
+                      {/* Mostrar typewriter text se esta mensagem está sendo "digitada" */}
+                      {typewriterMessageId === message.id ? (
+                        <>
+                          {renderMessage(typewriterText, message.role)}
+                          <span className="typewriter-cursor text-gray-400 font-mono">|</span>
+                        </>
+                      ) : (
+                        renderMessage(message.content, message.role)
+                      )}
+                      {/* Exibir imagem se existir (mesmo durante typewriter) */}
+                      {message.imageUrl && (
+                        <div className="mt-6">
+                          <div className="relative rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+                            <Image
+                              src={message.imageUrl} 
+                              alt="Imagem gerada por DALL-E 3"
+                              className="w-full max-w-md mx-auto block rounded-xl"
+                              width={512}
+                              height={512}
+                              priority={true}
+                              placeholder="blur"
+                              blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkbHB0eH/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAAABAv/EABRAQEAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKljhYa4NUv2EDaKAH/2Q=="
+                              onLoad={() => scrollToBottom()}
+                            />
+                            <div className="absolute bottom-3 left-3 bg-black/60 text-white px-3 py-1 rounded-full text-xs font-medium">
+                              🎨 DALL-E 3
+                            </div>
+                          </div>
                         </div>
+                      )}
+                    </div>
+                    <div className={`flex items-center justify-between mt-4 ${
+                      message.role === 'user' 
+                        ? 'text-white/70' 
+                        : 'text-gray-400'
+                    }`}>
+                      <span className="text-xs">
+                        {formatTimestamp(message.timestamp)}
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        {/* Botão TTS - apenas para mensagens da IA */}
+                        {message.role === 'assistant' && message.id !== 'welcome' && (
+                          <button
+                            onClick={() => playAudio(message.id, message.content)}
+                            className={`opacity-60 hover:opacity-100 p-1.5 rounded-lg transition-all duration-200 hover:bg-gray-100 ${
+                              audioState[message.id]?.loading || audioState[message.id]?.playing ? 'opacity-100 bg-gray-100' : ''
+                            }`}
+                            title={audioState[message.id]?.playing ? "⏸️ Pausar áudio" : "▶️ Reproduzir áudio"}
+                            disabled={audioState[message.id]?.loading}
+                          >
+                            {audioState[message.id]?.loading ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+                            ) : audioState[message.id]?.playing ? (
+                              <Pause className="w-3.5 h-3.5 text-blue-500" />
+                            ) : (
+                              <Play className="w-3.5 h-3.5 text-gray-600 hover:text-blue-500" />
+                            )}
+                          </button>
+                        )}
+                        
+                        {/* Botão Copiar */}
+                        <button
+                          onClick={() => copyMessage(message.content, message.id)}
+                          className={`opacity-60 hover:opacity-100 p-1.5 rounded-lg transition-all duration-200 ${
+                            message.role === 'user' 
+                              ? 'hover:bg-white/20' 
+                              : 'hover:bg-gray-100'
+                          } ${
+                            copiedMessageId === message.id ? 'opacity-100' : ''
+                          }`}
+                          title="Copiar mensagem"
+                        >
+                          {copiedMessageId === message.id ? (
+                            <CheckCircle2 className={`w-3.5 h-3.5 ${
+                              message.role === 'user' ? 'text-white' : 'text-green-500'
+                            }`} />
+                          ) : (
+                            <Copy className={`w-3.5 h-3.5 ${
+                              message.role === 'user' 
+                                ? 'text-white/80 hover:text-white' 
+                                : 'text-gray-600 hover:text-blue-500'
+                            }`} />
+                          )}
+                        </button>
                       </div>
                     </div>
-                  )}
-                </div>
-                <div className={`flex items-center justify-between mt-4 ${
-                  message.role === 'user' 
-                    ? 'text-blue-100' 
-                    : 'text-gray-400'
-                }`}>
-                  <span className="text-xs font-medium">
-                    {formatTimestamp(message.timestamp)}
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    {/* Botão TTS - apenas para mensagens da IA */}
-                    {message.role === 'assistant' && message.id !== 'welcome' && (
-                      <button
-                        onClick={() => playAudio(message.id, message.content)}
-                        className={`opacity-70 hover:opacity-100 p-2 rounded-xl transition-all duration-200 hover:bg-gray-100 hover:scale-110 ${
-                          audioState[message.id]?.loading || audioState[message.id]?.playing ? 'opacity-100 bg-gray-100' : ''
-                        }`}
-                        title={audioState[message.id]?.playing ? "⏸️ Pausar áudio" : "▶️ Reproduzir áudio"}
-                        disabled={audioState[message.id]?.loading}
-                      >
-                        {audioState[message.id]?.loading ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                        ) : audioState[message.id]?.playing ? (
-                          <Pause className="w-4 h-4 text-blue-500" />
-                        ) : (
-                          <Play className="w-4 h-4 text-emerald-500 hover:text-emerald-600" />
-                        )}
-                      </button>
-                    )}
-                    
-                    {/* Botão Copiar */}
-                    <button
-                      onClick={() => copyMessage(message.content, message.id)}
-                      className={`opacity-70 hover:opacity-100 p-2 rounded-xl transition-all duration-200 hover:bg-gray-100 ${
-                        copiedMessageId === message.id ? 'opacity-100 bg-gray-100' : ''
-                      }`}
-                      title="Copiar mensagem"
-                    >
-                      {copiedMessageId === message.id ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      ) : (
-                        <Copy className="w-4 h-4 text-gray-500" />
-                      )}
-                    </button>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
         
         {loadingState.sendingMessage && (
-          <div className="flex justify-start">
-            <div className="flex items-start space-x-4 max-w-4xl">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-md">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
-              <div className="bg-white border border-gray-100 rounded-2xl px-6 py-4 shadow-sm">
-                <div className="flex items-center space-x-3 text-gray-600">
-                  <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
-                  <span className="text-sm font-medium">Processando com GPT-4 Turbo + DALL-E 3...</span>
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+          <div className="max-w-4xl mx-auto px-6">
+            <div className="flex justify-start">
+              <div className="max-w-2xl relative overflow-hidden rounded-2xl border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 gentle-pulse">
+                {/* Fundo animado */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-green-50 to-purple-50 thinking-background"></div>
+                <div className="absolute inset-0 bg-white/70 backdrop-blur-sm"></div>
+                
+                {/* Conteúdo */}
+                <div className="relative px-6 py-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                      <Bot className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-3 text-gray-700">
+                        <span className="text-sm font-medium">🧠 Pensando</span>
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-gradient-to-r from-green-400 to-green-600 rounded-full thinking-dot shadow-sm"></div>
+                          <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full thinking-dot shadow-sm"></div>
+                          <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-purple-600 rounded-full thinking-dot shadow-sm"></div>
+                          <div className="w-2 h-2 bg-gradient-to-r from-pink-400 to-pink-600 rounded-full thinking-dot shadow-sm"></div>
+                          <div className="w-2 h-2 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full thinking-dot shadow-sm"></div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -856,53 +948,45 @@ export const ChatInterface = React.forwardRef<
       </div>
 
       {/* Input */}
-      <div className="bg-white/90 backdrop-blur-md border-t border-gray-100/50 px-6 py-4">
-        <div className="flex items-end space-x-4">
-          <textarea
-            ref={inputRef}
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder={isAnyLoading ? "Aguarde..." : "Digite sua mensagem ou peça uma imagem... ✨\n\nDica: Use Ctrl+Enter para quebrar linha"}
-            className="flex-1 bg-white border-gray-200 text-gray-800 placeholder-gray-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 rounded-xl px-4 py-3 text-sm shadow-sm resize-none min-h-[48px] max-h-32 overflow-y-auto"
-            disabled={isAnyLoading}
-            rows={1}
-            style={{
-              height: 'auto',
-              minHeight: '48px'
-            }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement
-              target.style.height = 'auto'
-              target.style.height = Math.min(target.scrollHeight, 128) + 'px'
-            }}
-          />
-          <Button
-            onClick={sendMessage}
-            disabled={!inputMessage.trim() || isAnyLoading}
-            size="icon"
-            className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl w-12 h-12 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105"
-          >
-            {loadingState.sendingMessage ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Send className="w-5 h-5" />
-            )}
-          </Button>
-        </div>
-        <div className="mt-4 text-xs text-gray-500 flex items-center justify-between">
-          <div className="flex flex-col space-y-1">
-            <span className="font-medium">
-              <strong>GPT-4 Turbo + DALL-E 3 + TTS:</strong> Respostas contextualizadas com super memória + geração de imagens + áudio
-            </span>
-            <span className="text-gray-400">
-              💡 <strong>Enter</strong> envia • <strong>Ctrl+Enter</strong> quebra linha • <strong>Shift+Enter</strong> quebra linha • Suporte a **markdown**
-            </span>
+      <div className="bg-white border-t border-gray-200 px-6 py-3 enhanced-shadow">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-end space-x-3">
+            <textarea
+              ref={inputRef}
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder={isAnyLoading ? "Aguarde..." : "Mensagem..."}
+              className="flex-1 bg-white border border-gray-300 text-gray-800 placeholder-gray-500 focus:border-gray-400 focus:ring-0 focus:outline-none rounded-lg px-3 py-2 text-sm resize-none min-h-[36px] max-h-24 overflow-y-auto enhanced-shadow transition-all duration-200 focus:shadow-lg"
+              disabled={isAnyLoading}
+              rows={1}
+              style={{
+                height: 'auto',
+                minHeight: '36px'
+              }}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement
+                target.style.height = 'auto'
+                target.style.height = Math.min(target.scrollHeight, 96) + 'px'
+              }}
+            />
+            <Button
+              onClick={sendMessage}
+              disabled={!inputMessage.trim() || isAnyLoading}
+              size="icon"
+              className="bg-black hover:bg-gray-800 text-white rounded-lg w-8 h-8 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 enhanced-shadow-lg hover:shadow-2xl transform hover:scale-105"
+            >
+              {loadingState.sendingMessage ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+            </Button>
           </div>
           {retryCount > 0 && (
-            <span className="text-amber-500 font-medium">
+            <div className="mt-3 text-xs text-amber-600 flex items-center justify-center">
               ⚠️ {retryCount} tentativas de reconexão
-            </span>
+            </div>
           )}
         </div>
       </div>
