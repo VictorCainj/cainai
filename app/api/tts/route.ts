@@ -7,7 +7,7 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { text, voice = 'ash' } = await request.json()
+    const { text, voice = 'nova', speed = 1.1, model = 'tts-1-hd' } = await request.json()
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
@@ -23,45 +23,78 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Melhorar texto para voz ash energética e limitar comprimento
-    let enhancedText = text
+    // Processar texto para melhor qualidade de voz
+    let processedText = text
+      // Remover formatação markdown
+      .replace(/\*\*(.*?)\*\*/g, '$1')  // Remove negrito
+      .replace(/\*(.*?)\*/g, '$1')      // Remove itálico
+      .replace(/`(.*?)`/g, '$1')        // Remove código inline
+      .replace(/#{1,6}\s/g, '')         // Remove headers
+      .replace(/- /g, '')               // Remove bullet points
+      .replace(/\[.*?\]\(.*?\)/g, '')   // Remove links markdown
+      // Remover emojis e símbolos especiais
+      .replace(/[🎯🔄📋🎓🎨⚡🧠🌐⚙️❌✅🚀📊💡🔧🔒📱🎵📝💾🔍🏷️📁⭐🤖🗣️👁️🤝🔌🏪🔗🪝🛡️🧹📋🚫🔐📇🔍🏊📖⚖️📈💬📄💻🎤👥💬🔔🔄📅]/g, '')
+      // Normalizar espaços e quebras de linha
       .replace(/\n+/g, '. ')
       .replace(/\s+/g, ' ')
+      .replace(/\.+/g, '.')
       .trim()
-    
-    // Limitar a 1000 caracteres para evitar problemas com textos longos
-    if (enhancedText.length > 1000) {
-      enhancedText = enhancedText.substring(0, 1000) + '.'
+
+    // Limitar comprimento para otimizar performance
+    if (processedText.length > 4000) {
+      processedText = processedText.substring(0, 4000).trim()
+      // Tentar cortar em uma frase completa
+      const lastPeriod = processedText.lastIndexOf('.')
+      if (lastPeriod > 3000) {
+        processedText = processedText.substring(0, lastPeriod + 1)
+      } else {
+        processedText += '.'
+      }
     }
+
+    // Adicionar pontuação para melhor entonação
+    if (!processedText.endsWith('.') && !processedText.endsWith('!') && !processedText.endsWith('?')) {
+      processedText += '.'
+    }
+
+    console.log(`🎵 TTS Request: ${processedText.length} chars, voice: ${voice}, speed: ${speed}`)
+
+    const startTime = Date.now()
 
     const response = await openai.audio.speech.create({
-      model: 'gpt-4o-mini-tts',
-      voice: 'ash',
-      input: enhancedText,
-      response_format: 'wav',
-      instructions: "Fale com entusiasmo e energia positiva. Use uma entonação envolvente, ritmo acelerado e variação emocional na voz. Soe animado, como se estivesse participando de um comercial ou apresentação empolgante."
+      model: model, // 'tts-1-hd' para alta qualidade ou 'tts-1' para mais rápido
+      voice: voice as 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer',
+      input: processedText,
+      speed: speed, // 0.25 a 4.0, onde 1.0 é velocidade normal
+      response_format: 'mp3' // MP3 para melhor compatibilidade
     })
 
-    if (!response.ok && 'error' in response) {
-      throw new Error(`OpenAI TTS Error: ${response.error}`)
-    }
-
     const buffer = Buffer.from(await response.arrayBuffer())
+    const generationTime = Date.now() - startTime
+
+    console.log(`🎵 TTS Success: ${buffer.length} bytes in ${generationTime}ms`)
 
     return new NextResponse(buffer, {
       status: 200,
       headers: {
-        'Content-Type': 'audio/wav',
+        'Content-Type': 'audio/mpeg',
         'Content-Length': buffer.length.toString(),
-        'Cache-Control': 'no-cache'
+        'Cache-Control': 'public, max-age=86400', // Cache por 24 horas
+        'X-Generation-Time': generationTime.toString(),
+        'X-Text-Length': processedText.length.toString(),
+        'X-Voice-Used': voice
       }
     })
 
   } catch (error) {
+    console.error('🎵 TTS Error:', error)
+    
     return NextResponse.json(
       { 
-        error: 'Erro interno no TTS',
-        details: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: 'Erro ao gerar áudio',
+        details: process.env.NODE_ENV === 'development' ? 
+          (error instanceof Error ? error.message : 'Erro desconhecido') : 
+          'Tente novamente em alguns momentos'
       },
       { status: 500 }
     )

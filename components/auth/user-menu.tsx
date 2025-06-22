@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { User, Settings, LogOut, MessageSquare, BarChart3, Crown, ChevronDown } from 'lucide-react'
+import { User, Settings, LogOut, MessageSquare, BarChart3, ChevronDown } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 
@@ -66,189 +66,148 @@ export function UserMenu({ onOpenSettings, onOpenDashboard, variant = 'dark' }: 
       <Button
         variant="ghost"
         onClick={() => setIsOpen(!isOpen)}
-        className={`${variant === 'light' ? 'p-1.5' : 'p-2'} rounded-lg transition-all ${
-          variant === 'light' 
-            ? 'hover:bg-gray-100 text-gray-700' 
-            : 'hover:bg-gray-800 text-white'
-        }`}
+        className="jarvis-button p-2 rounded-lg transition-all hover:jarvis-glow"
       >
-        <div className={`flex items-center ${variant === 'light' ? 'space-x-2' : 'space-x-3'}`}>
+        <div className="flex items-center space-x-3">
           {/* Avatar */}
           <div className="relative">
             {getAvatarUrl() ? (
               <img
                 src={getAvatarUrl()}
                 alt={getDisplayName()}
-                className={`${variant === 'light' ? 'w-7 h-7' : 'w-8 h-8'} rounded-full object-cover`}
+                className="w-8 h-8 rounded-full object-cover jarvis-border-glow"
               />
             ) : (
-              <div className={`${variant === 'light' ? 'w-7 h-7' : 'w-8 h-8'} bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center`}>
-                <span className={`text-white font-medium ${variant === 'light' ? 'text-xs' : 'text-sm'}`}>
+              <div className="w-8 h-8 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full flex items-center justify-center jarvis-glow">
+                <span className="text-white font-medium text-sm">
                   {getInitials()}
                 </span>
               </div>
             )}
             
-
+            {/* Online indicator */}
+            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border border-black animate-pulse jarvis-glow"></div>
           </div>
 
           {/* Nome e email */}
           <div className="hidden md:block text-left">
-            <p className={`${variant === 'light' ? 'text-xs' : 'text-sm'} font-medium truncate max-w-32 ${
-              variant === 'light' ? 'text-gray-700' : 'text-white'
-            }`}>
+            <p className="text-sm font-medium truncate max-w-32 text-cyan-300 jarvis-text">
               {getDisplayName()}
             </p>
-            <p className={`${variant === 'light' ? 'text-xs' : 'text-xs'} truncate max-w-32 ${
-              variant === 'light' ? 'text-gray-500' : 'text-gray-400'
-            }`}>
+            <p className="text-xs truncate max-w-32 text-gray-400 jarvis-mono">
               {user.email}
             </p>
           </div>
 
           {/* Chevron */}
           <ChevronDown 
-            className={`${variant === 'light' ? 'w-3 h-3' : 'w-4 h-4'} transition-transform ${
-              variant === 'light' ? 'text-gray-500' : 'text-gray-400'
-            } ${isOpen ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 transition-transform text-cyan-400 ${isOpen ? 'rotate-180' : ''}`}
           />
         </div>
       </Button>
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className={`absolute right-0 top-full mt-2 w-64 rounded-xl shadow-2xl z-50 py-2 ${
-          variant === 'light' 
-            ? 'bg-white border border-gray-200' 
-            : 'bg-gray-800 border border-gray-700'
-        }`}>
-          {/* Header do menu */}
-          <div className={`px-4 py-3 border-b ${
-            variant === 'light' ? 'border-gray-200' : 'border-gray-700'
-          }`}>
-            <div className="flex items-center space-x-3">
-              {getAvatarUrl() ? (
-                <img
-                  src={getAvatarUrl()}
-                  alt={getDisplayName()}
-                  className="w-10 h-10 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-medium">
-                    {getInitials()}
-                  </span>
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className={`font-medium truncate ${
-                  variant === 'light' ? 'text-gray-800' : 'text-white'
-                }`}>
-                  {getDisplayName()}
-                </p>
-                <p className={`text-sm truncate ${
-                  variant === 'light' ? 'text-gray-600' : 'text-gray-400'
-                }`}>
-                  {user.email}
-                </p>
-                {profile?.username && (
-                  <p className="text-blue-500 text-xs">
-                    @{profile.username}
-                  </p>
+        <div className="absolute right-0 top-full mt-2 w-64 z-50 jarvis-boot">
+          <div className="jarvis-panel bg-black/95 backdrop-blur-lg">
+            {/* Header do menu */}
+            <div className="px-4 py-3 border-b border-cyan-500/30">
+              <div className="flex items-center space-x-3">
+                {getAvatarUrl() ? (
+                  <img
+                    src={getAvatarUrl()}
+                    alt={getDisplayName()}
+                    className="w-10 h-10 rounded-full object-cover jarvis-border-glow"
+                  />
+                ) : (
+                  <div className="w-10 h-10 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full flex items-center justify-center jarvis-glow">
+                    <span className="text-white font-medium">
+                      {getInitials()}
+                    </span>
+                  </div>
                 )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate text-cyan-300 jarvis-text">
+                    {getDisplayName()}
+                  </p>
+                  <p className="text-sm truncate text-gray-400 jarvis-mono">
+                    {user.email}
+                  </p>
+                  {profile?.username && (
+                    <p className="text-cyan-400 text-xs jarvis-mono">
+                      @{profile.username}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Menu Items */}
-          <div className="py-2">
-            {/* Dashboard */}
-            {onOpenDashboard && (
+            {/* Menu Items */}
+            <div className="py-2">
+              {/* Dashboard */}
+              {onOpenDashboard && (
+                <button
+                  onClick={() => {
+                    onOpenDashboard()
+                    setIsOpen(false)
+                  }}
+                  className="w-full px-4 py-3 text-left transition-all flex items-center space-x-3 text-gray-300 hover:text-cyan-400 hover:bg-cyan-900/20 jarvis-text group"
+                >
+                  <BarChart3 className="w-4 h-4 text-cyan-400 group-hover:jarvis-glow" />
+                  <span>Dashboard</span>
+                </button>
+              )}
+
+              {/* Conversas */}
               <button
-                onClick={() => {
-                  onOpenDashboard()
-                  setIsOpen(false)
-                }}
-                className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 ${
-                  variant === 'light' 
-                    ? 'hover:bg-gray-100 text-gray-700' 
-                    : 'hover:bg-gray-700 text-white'
-                }`}
+                onClick={() => setIsOpen(false)}
+                className="w-full px-4 py-3 text-left transition-all flex items-center space-x-3 text-gray-300 hover:text-cyan-400 hover:bg-cyan-900/20 jarvis-text group"
               >
-                <BarChart3 className={`w-4 h-4 ${
-                  variant === 'light' ? 'text-gray-500' : 'text-gray-400'
-                }`} />
-                <span>Dashboard</span>
+                <MessageSquare className="w-4 h-4 text-cyan-400 group-hover:jarvis-glow" />
+                <span>Minhas Conversas</span>
               </button>
-            )}
 
-            {/* Conversas */}
-            <button
-              onClick={() => setIsOpen(false)}
-              className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 ${
-                variant === 'light' 
-                  ? 'hover:bg-gray-100 text-gray-700' 
-                  : 'hover:bg-gray-700 text-white'
-              }`}
-            >
-              <MessageSquare className={`w-4 h-4 ${
-                variant === 'light' ? 'text-gray-500' : 'text-gray-400'
-              }`} />
-              <span>Minhas Conversas</span>
-            </button>
-
-            {/* Configurações */}
-            {onOpenSettings && (
+              {/* Configurações */}
               <button
                 onClick={() => {
-                  onOpenSettings()
+                  if (onOpenSettings) {
+                    onOpenSettings()
+                  }
                   setIsOpen(false)
                 }}
-                className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 ${
-                  variant === 'light' 
-                    ? 'hover:bg-gray-100 text-gray-700' 
-                    : 'hover:bg-gray-700 text-white'
-                }`}
+                className="w-full px-4 py-3 text-left transition-all flex items-center space-x-3 text-gray-300 hover:text-cyan-400 hover:bg-cyan-900/20 jarvis-text group"
               >
-                <Settings className={`w-4 h-4 ${
-                  variant === 'light' ? 'text-gray-500' : 'text-gray-400'
-                }`} />
+                <Settings className="w-4 h-4 text-cyan-400 group-hover:jarvis-glow" />
                 <span>Configurações</span>
               </button>
-            )}
+            </div>
 
-            {/* Upgrade (se não for premium) */}
+            {/* Divisor */}
+            <div className="border-t border-cyan-500/30 my-2"></div>
+
+            {/* System Info */}
+            <div className="px-4 py-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="jarvis-mono text-gray-500">Status do Sistema</span>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse jarvis-glow"></div>
+                  <span className="jarvis-mono text-green-400">Online</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Divisor */}
+            <div className="border-t border-cyan-500/30 my-2"></div>
+
+            {/* Logout */}
             <button
-              onClick={() => setIsOpen(false)}
-              className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 ${
-                variant === 'light' 
-                  ? 'hover:bg-gray-100 text-gray-700' 
-                  : 'hover:bg-gray-700 text-white'
-              }`}
+              onClick={handleLogout}
+              className="w-full px-4 py-3 text-left transition-all flex items-center space-x-3 text-red-400 hover:text-red-300 hover:bg-red-900/20 jarvis-text group"
             >
-              <Crown className="w-4 h-4 text-yellow-500" />
-              <span>Upgrade para Pro</span>
-              <span className="ml-auto bg-yellow-500 text-yellow-100 text-xs px-2 py-1 rounded-full">
-                Em breve
-              </span>
+              <LogOut className="w-4 h-4 group-hover:jarvis-glow" />
+              <span>Desconectar Sistema</span>
             </button>
           </div>
-
-          {/* Divisor */}
-          <div className={`border-t my-2 ${
-            variant === 'light' ? 'border-gray-200' : 'border-gray-700'
-          }`}></div>
-
-          {/* Logout */}
-          <button
-            onClick={handleLogout}
-            className={`w-full px-4 py-2 text-left transition-colors flex items-center space-x-3 text-red-500 ${
-              variant === 'light' ? 'hover:bg-red-50' : 'hover:bg-red-900/50'
-            }`}
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sair</span>
-          </button>
         </div>
       )}
     </div>

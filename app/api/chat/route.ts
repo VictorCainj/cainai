@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { chatService } from '@/lib/chat-service'
 import { sessionManager } from '@/lib/session'
+import { context7Service } from '@/lib/context7-service'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-// Prompt otimizado para super memória com GPT-4 Turbo
-const SYSTEM_PROMPT = `Você é um assistente especializado em produtividade com SUPER MEMÓRIA, powered by GPT-4 Turbo. Você tem acesso completo ao histórico da conversa atual e deve usar essa informação de forma inteligente.
+// Prompt otimizado para super memória com GPT-4 Turbo + Context7 MCP
+const SYSTEM_PROMPT = `Você é um assistente especializado em produtividade com SUPER MEMÓRIA, powered by GPT-4 Turbo + Context7 MCP. Você tem acesso completo ao histórico da conversa atual e documentação atualizada em tempo real.
 
 **SUAS CAPACIDADES DE MEMÓRIA:**
 🧠 **Memória Contextual**: Lembro de tudo que foi discutido nesta conversa
@@ -17,6 +18,7 @@ const SYSTEM_PROMPT = `Você é um assistente especializado em produtividade com
 🎯 **Personalização**: Adapto respostas baseado no seu histórico e preferências
 🎓 **Aprendizado**: Melhoro com cada interação nossa
 🎨 **Geração de Imagens**: Posso criar imagens usando DALL-E 3
+📚 **Context7 MCP**: Acesso a documentação atualizada de bibliotecas e frameworks em tempo real
 
 **SUAS ESPECIALIDADES:**
 
@@ -60,6 +62,13 @@ const SYSTEM_PROMPT = `Você é um assistente especializado em produtividade com
 - Criar prompts detalhados para DALL-E 3
 - Sugerir melhorias visuais para projetos
 - Criar ilustrações para conceitos e ideias
+
+📚 **CONTEXT7 MCP - DOCUMENTAÇÃO ATUALIZADA:**
+- Busco automaticamente documentação atualizada quando você menciona bibliotecas
+- Detecto frameworks e tecnologias em suas perguntas
+- Forneço exemplos de código com versões atuais
+- Evito APIs depreciadas e métodos obsoletos
+- Bibliotecas suportadas: React, Next.js, Vue, Angular, Node.js, Python, e muito mais
 
 **DETECÇÃO DE SOLICITAÇÕES DE IMAGEM:**
 Se o usuário solicitar uma imagem, foto, desenho, ilustração, logo, design, ou qualquer conteúdo visual, você deve responder EXATAMENTE neste formato:
@@ -242,6 +251,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Integração Context7 MCP - Buscar documentação relevante
+    let context7Documentation = ''
+    let context7Info: { librariesDetected: string[], tokensUsed: number } = { 
+      librariesDetected: [], 
+      tokensUsed: 0 
+    }
+    
+    try {
+      const context7Result = await context7Service.processMessage(message)
+      context7Documentation = context7Result.documentation
+      context7Info = {
+        librariesDetected: context7Result.librariesDetected,
+        tokensUsed: context7Result.tokensUsed
+      }
+      
+      if (context7Documentation) {
+        // Adicionar documentação Context7 ao contexto do sistema
+        openAIMessages.push({
+          role: 'system' as const,
+          content: context7Documentation
+        })
+      }
+    } catch (context7Error) {
+      // Falha silenciosa do Context7 - não impede o chat de funcionar
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Context7 error:', context7Error)
+      }
+    }
+
     openAIMessages.push({
       role: 'user' as const,
       content: message
@@ -289,7 +327,12 @@ export async function POST(request: NextRequest) {
       model: 'gpt-4-turbo-preview',
       contextUsed: contextMessages.length,
       superMemoryActive: true,
-      dalleGenerated: !!imageUrl
+      dalleGenerated: !!imageUrl,
+      context7: {
+        enabled: !!context7Documentation,
+        librariesDetected: context7Info.librariesDetected,
+        tokensUsed: context7Info.tokensUsed
+      }
     })
 
   } catch (error) {

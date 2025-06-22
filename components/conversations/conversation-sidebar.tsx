@@ -1,10 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { MessageCircle, Plus, Search, Clock, Check, CheckCheck, Trash2, MoreVertical, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react'
+import { MessageCircle, Plus, Search, Clock, Check, CheckCheck, Trash2, MoreVertical, Loader2, CheckCircle2, AlertCircle, X, MessageSquare, MoreHorizontal, Calendar, User } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { sessionManager } from '@/lib/session'
 import { chatService } from '@/lib/chat-service'
+import { Button } from '@/components/ui/button'
+import { UserMenu } from '@/components/auth/user-menu'
 
 interface Conversation {
   id: string
@@ -42,6 +44,7 @@ export function ConversationSidebar({
   const [orphanedConversations, setOrphanedConversations] = useState<any[]>([])
   const [showMigrationPrompt, setShowMigrationPrompt] = useState(false)
   const [migrating, setMigrating] = useState(false)
+  const [menuOpen, setMenuOpen] = useState<string | null>(null)
 
   // Obter userId
   const userId = sessionManager.getUserId() || user?.id
@@ -367,178 +370,213 @@ export function ConversationSidebar({
   }
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full relative enhanced-shadow">
-      {/* Prompt de Migração */}
-      {showMigrationPrompt && orphanedConversations.length > 0 && (
-        <div className="p-4 bg-yellow-50 border-b border-yellow-200">
-          <div className="flex items-start space-x-3">
-            <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-              <AlertCircle className="w-4 h-4 text-white" />
+    <div className="w-80 bg-gray-50 dark:bg-neutral-800 border-r border-gray-200 dark:border-neutral-700 flex flex-col h-full relative overflow-hidden">
+      {/* Header */}
+      <div className="relative z-10 p-4 border-b border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg flex items-center justify-center shadow-sm">
+              <MessageSquare className="w-4 h-4 text-white" />
             </div>
-            <div className="flex-1">
-              <h3 className="font-medium text-yellow-800 mb-1">
-                Conversas anteriores encontradas
-              </h3>
-              <p className="text-sm text-yellow-700 mb-3">
-                Encontramos {orphanedConversations.length} conversa(s) anteriores que não estão aparecendo. 
-                Deseja migrá-las para sua conta?
-              </p>
-              <div className="flex space-x-2">
-                <button
-                  onClick={migrateOrphanedConversations}
-                  disabled={migrating}
-                  className="px-3 py-1 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 disabled:opacity-50 flex items-center space-x-1"
-                >
-                  {migrating && <Loader2 className="w-3 h-3 animate-spin" />}
-                  <span>{migrating ? 'Migrando...' : 'Migrar'}</span>
-                </button>
-                <button
-                  onClick={() => setShowMigrationPrompt(false)}
-                  className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
-                >
-                  Ignorar
-                </button>
-              </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-neutral-200">Conversas</h2>
+              <p className="text-xs text-blue-600 dark:text-blue-400">Assistente IA</p>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Header da Sidebar */}
-      <div className="p-3 border-b border-gray-100 flex-shrink-0">
-        <div className="flex items-center justify-between mb-3">
-          {/* Botão Nova Conversa */}
-          <button
-            onClick={onNewConversation}
-            className="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900 border border-gray-300 hover:border-gray-400 rounded-lg px-3 py-2 transition-colors duration-200"
-            title="Nova Conversa"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nova conversa</span>
-          </button>
+        {/* New Conversation Button */}
+        <Button
+          onClick={onNewConversation}
+          className="w-full py-3 mb-4 bg-blue-600 hover:bg-blue-700 text-white border-none rounded-lg shadow-sm transition-all duration-200"
+          disabled={loading}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          <span className="font-medium">Nova Conversa</span>
+        </Button>
+
+        {/* Search Bar */}
+        <div className="relative">
+          <div className="bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg shadow-sm">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-neutral-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar conversas..."
+                className="w-full pl-10 pr-4 py-2 bg-transparent border-none text-gray-700 dark:text-neutral-200 placeholder-gray-400 dark:placeholder-neutral-400 focus:outline-none"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-
-
-      {/* Lista de Conversas - área rolável */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {loading ? (
-          <div className="p-6 text-center text-gray-500">
-            <Loader2 className="w-12 h-12 mx-auto mb-3 text-gray-300 animate-spin" />
-            <p>Carregando conversas...</p>
-          </div>
-        ) : filteredConversations.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            <MessageCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p>Nenhuma conversa encontrada</p>
-          </div>
-        ) : (
-          filteredConversations.map((conv) => {
-            const isDeleting = deletingConversations.has(conv.id)
-            
-            return (
-              <div
-                key={conv.id}
-                className={`relative px-3 py-3 cursor-pointer transition-all duration-200 hover:bg-gray-100 hover:enhanced-shadow group ${
-                  currentConversationId === conv.id ? 'bg-gray-100 enhanced-shadow' : ''
-                } ${isDeleting ? 'opacity-50 pointer-events-none bg-red-50' : ''}`}
-              >
-                {/* Indicador de exclusão */}
-                {isDeleting && (
-                  <div className="absolute inset-0 bg-red-100 bg-opacity-75 flex items-center justify-center z-10">
-                    <div className="flex items-center space-x-2 text-red-600">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span className="text-sm font-medium">Excluindo...</span>
-                    </div>
+      {/* Conversations List */}
+      <div className="flex-1 overflow-hidden relative z-10">
+        <div className="h-full overflow-y-auto custom-scrollbar p-2">
+          {loading ? (
+            <div className="space-y-3 p-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg p-3 animate-pulse shadow-sm">
+                  <div className="space-y-2">
+                    <div className="h-4 bg-gray-200 dark:bg-neutral-600 rounded"></div>
+                    <div className="h-3 bg-gray-100 dark:bg-neutral-500 rounded w-3/4"></div>
                   </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="p-4 text-center">
+              <div className="bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg p-6 shadow-sm">
+                <MessageSquare className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-3" />
+                <p className="text-gray-700 dark:text-neutral-200 mb-2">
+                  {searchTerm ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa ainda'}
+                </p>
+                {!searchTerm && (
+                  <p className="text-xs text-gray-500 dark:text-neutral-400">
+                    Inicie uma nova conversa para começar
+                  </p>
                 )}
-              <div 
-                onClick={() => onSelectConversation(conv.id)}
-                className="flex items-center space-x-3"
-              >
-                {/* Ícone da conversa */}
-                <div className="flex-shrink-0">
-                  <MessageCircle className="w-4 h-4 text-gray-500" />
-                </div>
-
-                {/* Conteúdo da Conversa */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm text-gray-900 truncate">{conv.title}</h3>
-                </div>
-              </div>
-
-              {/* Menu de Opções - aparece ao hover */}
-              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <div className="relative">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowDeleteMenu(showDeleteMenu === conv.id ? null : conv.id)
-                    }}
-                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-colors duration-200"
-                    title="Opções da conversa"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-
-                  {/* Menu de Exclusão */}
-                  {showDeleteMenu === conv.id && (
-                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 min-w-[120px]">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (confirm(`Tem certeza que deseja excluir a conversa "${conv.title}"?\n\nEsta ação irá excluir permanentemente a conversa e todas as suas mensagens e não pode ser desfeita.`)) {
-                            handleDeleteConversation(conv.id)
-                          }
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors duration-200 flex items-center space-x-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Excluir</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
-            )
-          })
+          ) : (
+            <div className="space-y-2">
+              {filteredConversations.map((conversation, index) => (
+                <div
+                  key={conversation.id}
+                  className={`group relative cursor-pointer transition-all duration-200`}
+                  onClick={() => onSelectConversation(conversation.id)}
+                >
+                  <div className={`border rounded-lg p-3 m-1 transition-all duration-200 shadow-sm ${
+                    currentConversationId === conversation.id
+                      ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 shadow-md'
+                      : 'bg-white dark:bg-neutral-700 border-gray-200 dark:border-neutral-600 hover:bg-gray-50 dark:hover:bg-neutral-600 hover:border-gray-300 dark:hover:border-neutral-500'
+                  }`}>
+                    
+                    {/* Conversation Header */}
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`text-sm font-medium truncate ${
+                          currentConversationId === conversation.id ? 'text-blue-700 dark:text-blue-300' : 'text-gray-800 dark:text-neutral-200'
+                        }`}>
+                          {conversation.title || 'Conversa sem título'}
+                        </h3>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Calendar className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                          <span className="text-xs text-gray-500 dark:text-neutral-400">
+                             {formatTimestamp(conversation.updated_at || conversation.created_at || new Date().toISOString())}
+                           </span>
+                        </div>
+                      </div>
+                      
+                      {/* Actions Menu */}
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setMenuOpen(menuOpen === conversation.id ? null : conversation.id)
+                          }}
+                          className="h-6 w-6 p-0 text-gray-500 dark:text-neutral-400 hover:text-gray-700 dark:hover:text-neutral-200"
+                        >
+                          <MoreHorizontal className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Last Message Preview */}
+                    <div className="space-y-2">
+                      <p className={`text-xs line-clamp-2 ${
+                        currentConversationId === conversation.id ? 'text-gray-600 dark:text-neutral-300' : 'text-gray-500 dark:text-neutral-400'
+                      }`}>
+                        {conversation.last_message || 'Sem mensagens'}
+                      </p>
+                      
+                      {/* Conversation Stats */}
+                      <div className="flex items-center justify-between">
+                                                  <div className="flex items-center space-x-3">
+                          <div className="flex items-center space-x-1">
+                            <MessageSquare className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                            <span className="text-xs text-blue-600 dark:text-blue-400">
+                              {conversation.message_count || 0}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <Clock className="w-3 h-3 text-gray-400 dark:text-neutral-400" />
+                            <span className="text-xs text-gray-400 dark:text-neutral-400">
+                               {formatTimestamp(conversation.updated_at || conversation.created_at || new Date().toISOString())}
+                             </span>
+                          </div>
+                        </div>
+                        
+                        {/* Active indicator */}
+                        {currentConversationId === conversation.id && (
+                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Dropdown Menu */}
+                    {menuOpen === conversation.id && (
+                      <div className="absolute right-2 top-12 z-20 bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg shadow-lg min-w-[160px]">
+                        <div className="py-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteConversation(conversation.id)
+                            }}
+                            disabled={deletingConversations.has(conversation.id)}
+                            className="w-full px-3 py-2 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex items-center space-x-2 text-sm"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Excluir</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* User Info Footer */}
+      <div className="relative z-10 p-4 border-t border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
+        {user ? (
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-500 rounded-full flex items-center justify-center shadow-sm">
+              <User className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800 dark:text-neutral-200 truncate">
+                {user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-neutral-400 truncate">
+                {user.email}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center">
+            <div className="text-xs text-gray-500 dark:text-neutral-400">
+              {filteredConversations.length} conversas
+            </div>
+          </div>
         )}
       </div>
 
-
-
-
-      {/* Notificações */}
-      {notifications.length > 0 && (
-        <div className="absolute top-4 left-4 right-4 z-50 space-y-2">
-          {notifications.map((notification) => (
-            <div
-              key={notification.id}
-              className={`p-3 rounded-lg shadow-lg border-l-4 flex items-center justify-between animate-slide-in ${
-                notification.type === 'success' 
-                  ? 'bg-green-50 border-green-400 text-green-800' 
-                  : 'bg-red-50 border-red-400 text-red-800'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                {notification.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-600" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-red-600" />
-                )}
-                <span className="text-sm font-medium">{notification.message}</span>
-              </div>
-              <button
-                onClick={() => removeNotification(notification.id)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
+      {/* Click outside handler for menu */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-10"
+          onClick={() => setMenuOpen(null)}
+        />
       )}
     </div>
   )
