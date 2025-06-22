@@ -40,6 +40,9 @@ export function ConversationSidebar({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [deletingConversations, setDeletingConversations] = useState<Set<string>>(new Set())
   const [notifications, setNotifications] = useState<{id: string, message: string, type: 'success' | 'error'}[]>([])
+  const [orphanedConversations, setOrphanedConversations] = useState<any[]>([])
+  const [showMigrationPrompt, setShowMigrationPrompt] = useState(false)
+  const [migrating, setMigrating] = useState(false)
 
   // Obter userId
   const userId = sessionManager.getUserId() || user?.id
@@ -96,10 +99,85 @@ export function ConversationSidebar({
     }
   }
 
+  // Verificar conversas órfãs (apenas para usuários autenticados)
+  const checkOrphanedConversations = async () => {
+    if (!user || !userId) return
+
+    try {
+      // Buscar conversas que podem estar órfãs no localStorage
+      const localSessionData = localStorage.getItem('chat_session_user')
+      if (localSessionData) {
+        const sessionUser = JSON.parse(localSessionData)
+        
+        // Se o sessionUser.id é diferente do user.id, pode haver conversas órfãs
+        if (sessionUser.id !== user.id && sessionUser.isAnonymous) {
+          // Verificar se existem conversas no Supabase com o ID anônimo
+          const response = await fetch(`/api/conversations/diagnostics?anonymousId=${sessionUser.id}&userId=${user.id}`)
+          const data = await response.json()
+          
+          if (data.orphanedConversations && data.orphanedConversations.length > 0) {
+            setOrphanedConversations(data.orphanedConversations)
+            setShowMigrationPrompt(true)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar conversas órfãs:', error)
+    }
+  }
+
+  // Migrar conversas órfãs
+  const migrateOrphanedConversations = async () => {
+    if (!user || orphanedConversations.length === 0) return
+
+    try {
+      setMigrating(true)
+      
+      const response = await fetch('/api/conversations/migrate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fromUserId: orphanedConversations[0]?.user_id,
+          toUserId: user.id
+        })
+      })
+
+      const result = await response.json()
+      
+      if (result.success) {
+        showNotification(`${result.migratedCount} conversas migradas com sucesso!`, 'success')
+        setShowMigrationPrompt(false)
+        setOrphanedConversations([])
+        
+        // Atualizar sessionManager para usar o novo userId
+        sessionManager.signOut()
+        await sessionManager.signInWithSupabase()
+        
+        // Recarregar conversas
+        setTimeout(() => loadConversations(), 1000)
+      } else {
+        showNotification(`Erro na migração: ${result.error}`, 'error')
+      }
+    } catch (error) {
+      showNotification('Erro ao migrar conversas', 'error')
+    } finally {
+      setMigrating(false)
+    }
+  }
+
   // Carregar conversas quando o componente monta
   useEffect(() => {
     loadConversations()
   }, [userId])
+
+  // Verificar conversas órfãs quando o usuário estiver autenticado
+  useEffect(() => {
+    if (user && !loading) {
+      setTimeout(() => checkOrphanedConversations(), 2000)
+    }
+  }, [user, loading])
 
   // Recarregar conversas a cada 2 minutos para capturar novas conversas (menos frequente)
   useEffect(() => {
@@ -278,6 +356,42 @@ export function ConversationSidebar({
 
   return (
     <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-full relative">
+      {/* Prompt de Migração */}
+      {showMigrationPrompt && orphanedConversations.length > 0 && (
+        <div className="p-4 bg-yellow-50 border-b border-yellow-200">
+          <div className="flex items-start space-x-3">
+            <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <AlertCircle className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-medium text-yellow-800 mb-1">
+                Conversas anteriores encontradas
+              </h3>
+              <p className="text-sm text-yellow-700 mb-3">
+                Encontramos {orphanedConversations.length} conversa(s) anteriores que não estão aparecendo. 
+                Deseja migrá-las para sua conta?
+              </p>
+              <div className="flex space-x-2">
+                <button
+                  onClick={migrateOrphanedConversations}
+                  disabled={migrating}
+                  className="px-3 py-1 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 disabled:opacity-50 flex items-center space-x-1"
+                >
+                  {migrating && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span>{migrating ? 'Migrando...' : 'Migrar'}</span>
+                </button>
+                <button
+                  onClick={() => setShowMigrationPrompt(false)}
+                  className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                >
+                  Ignorar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header da Sidebar */}
       <div className="p-4 border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">

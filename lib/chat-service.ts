@@ -560,6 +560,169 @@ class ChatService {
       return 0
     }
   }
+
+  // Novo método: Diagnosticar conversas órfãs
+  async diagnoseOrphanedConversations(anonymousUserId: string, authenticatedUserId: string) {
+    await this.initialize()
+    
+    try {
+      // Buscar conversas do usuário anônimo
+      const { data: orphanedConversations, error } = await supabase
+        .from('chat_conversations')
+        .select('id, title, user_id, created_at, updated_at')
+        .eq('user_id', anonymousUserId)
+        .order('updated_at', { ascending: false })
+
+      if (error) {
+        console.error('Erro ao diagnosticar conversas órfãs:', error)
+        return { orphanedConversations: [], error: error.message }
+      }
+
+      // Buscar conversas do usuário autenticado para comparação
+      const { data: authenticatedConversations, error: authError } = await supabase
+        .from('chat_conversations')
+        .select('id, title, created_at')
+        .eq('user_id', authenticatedUserId)
+        .order('updated_at', { ascending: false })
+
+      return {
+        orphanedConversations: orphanedConversations || [],
+        authenticatedConversations: authenticatedConversations || [],
+        totalOrphaned: (orphanedConversations || []).length,
+        totalAuthenticated: (authenticatedConversations || []).length,
+        canMigrate: (orphanedConversations || []).length > 0
+      }
+    } catch (error) {
+      console.error('Erro na diagnose:', error)
+      return { 
+        orphanedConversations: [], 
+        error: error instanceof Error ? error.message : 'Erro desconhecido' 
+      }
+    }
+  }
+
+  // Novo método: Migrar conversas órfãs
+  async migrateOrphanedConversations(fromUserId: string, toUserId: string) {
+    await this.initialize()
+    
+    try {
+      // Primeiro, verificar se existem conversas para migrar
+      const { data: conversationsToMigrate, error: checkError } = await supabase
+        .from('chat_conversations')
+        .select('id, title, created_at')
+        .eq('user_id', fromUserId)
+
+      if (checkError) {
+        throw new Error(`Erro ao verificar conversas: ${checkError.message}`)
+      }
+
+      if (!conversationsToMigrate || conversationsToMigrate.length === 0) {
+        return { 
+          success: true, 
+          migratedCount: 0, 
+          message: 'Nenhuma conversa para migrar' 
+        }
+      }
+
+      // Executar a migração
+      const { error: migrationError } = await supabase
+        .from('chat_conversations')
+        .update({ 
+          user_id: toUserId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', fromUserId)
+
+      if (migrationError) {
+        throw new Error(`Erro na migração: ${migrationError.message}`)
+      }
+
+      // Verificar se a migração foi bem-sucedida
+      const { data: verificationData, error: verifyError } = await supabase
+        .from('chat_conversations')
+        .select('id')
+        .eq('user_id', toUserId)
+
+      if (verifyError) {
+        throw new Error(`Erro na verificação: ${verifyError.message}`)
+      }
+
+      return {
+        success: true,
+        migratedCount: conversationsToMigrate.length,
+        migratedConversations: conversationsToMigrate,
+        totalAfterMigration: (verificationData || []).length,
+        message: `${conversationsToMigrate.length} conversas migradas com sucesso`
+      }
+
+    } catch (error) {
+      console.error('Erro na migração:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        migratedCount: 0
+      }
+    }
+  }
+
+  // Novo método: Verificar integridade do usuário
+  async checkUserIntegrity(userId: string) {
+    await this.initialize()
+    
+    try {
+      // Contar conversas
+      const { count: conversationCount, error: convError } = await supabase
+        .from('chat_conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+
+      // Buscar IDs das conversas primeiro
+      const { data: userConversations, error: convIdsError } = await supabase
+        .from('chat_conversations')
+        .select('id')
+        .eq('user_id', userId)
+
+      let messageCount = 0
+      let msgError = null
+
+      if (!convIdsError && userConversations && userConversations.length > 0) {
+        const conversationIds = userConversations.map(conv => conv.id)
+        const { count, error } = await supabase
+          .from('chat_messages')
+          .select('*', { count: 'exact', head: true })
+          .in('conversation_id', conversationIds)
+        
+        messageCount = count || 0
+        msgError = error
+      }
+
+             if (convError || msgError || convIdsError) {
+         return {
+           userId,
+           conversationCount: 0,
+           messageCount: 0,
+           error: convError?.message || msgError?.message || convIdsError?.message,
+           isHealthy: false
+         }
+       }
+
+      return {
+        userId,
+        conversationCount: conversationCount || 0,
+        messageCount: messageCount || 0,
+        isHealthy: true,
+        hasData: (conversationCount || 0) > 0
+      }
+    } catch (error) {
+      return {
+        userId,
+        conversationCount: 0,
+        messageCount: 0,
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        isHealthy: false
+      }
+    }
+  }
 }
 
 export const chatService = ChatService.getInstance() 
