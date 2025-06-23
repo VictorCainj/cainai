@@ -120,7 +120,7 @@ export function useVoiceCommands(actions: VoiceControlActions, config: VoiceCont
         if (actionsRef.current.onAdjustSettings) {
           // Ciclar entre vozes disponíveis
           const voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
-          const currentIndex = voices.indexOf(ttsSettings.voice || 'nova')
+          const currentIndex = voices.indexOf(ttsSettings.selectedVoice || 'nova')
           const nextIndex = (currentIndex + 1) % voices.length
           actionsRef.current.onAdjustSettings('voice', voices[nextIndex])
           recordCommand('mudar_voz')
@@ -183,7 +183,7 @@ export function useVoiceCommands(actions: VoiceControlActions, config: VoiceCont
       ]
       commandsToRemove.forEach(cmd => speechToTextService.removeCommand(cmd))
     }
-  }, [isVoiceControlEnabled, config.autoPlayResponses, ttsSettings.voice])
+  }, [isVoiceControlEnabled, config.autoPlayResponses, ttsSettings.selectedVoice])
 
   // Configurar callbacks do serviço
   useEffect(() => {
@@ -267,7 +267,7 @@ export function useVoiceCommands(actions: VoiceControlActions, config: VoiceCont
   }, [])
 
   const playTextToSpeech = useCallback(async (text: string) => {
-    if (!config.autoPlayResponses || ttsSettings.muted) return
+    if (!config.autoPlayResponses || !ttsSettings.isEnabled) return
 
     try {
       const response = await fetch('/api/tts', {
@@ -275,7 +275,7 @@ export function useVoiceCommands(actions: VoiceControlActions, config: VoiceCont
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
-          voice: ttsSettings.voice || 'nova',
+          voice: ttsSettings.selectedVoice || 'nova',
           speed: ttsSettings.speed || 1.1,
           model: 'tts-1-hd'
         }),
