@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { TextShimmer } from '@/components/ui/text-shimmer'
 import { InlineCodePanel } from '@/components/ui/inline-code-panel'
 import { useTTSSettings } from '@/components/chat/tts-voice-selector'
+import { ConversationLoading } from '@/components/ui/conversation-loading'
 
 type Message = {
   id: string
@@ -64,6 +65,7 @@ export const AIAssistantInterface = React.forwardRef<
   const [retryCount, setRetryCount] = useState(0)
   const [audioState, setAudioState] = useState<AudioState>({})
   const [fullImageView, setFullImageView] = useState<string | null>(null)
+  const [showConversationLoading, setShowConversationLoading] = useState(false)
   
   // Estados do design moderno
   const [searchEnabled, setSearchEnabled] = useState(false)
@@ -131,8 +133,13 @@ export const AIAssistantInterface = React.forwardRef<
     if (loadingState.loadingConversation || loadingState.sendingMessage) return
 
     try {
+      // Mostrar animação de loading imediatamente
+      setShowConversationLoading(true)
       updateLoadingState('loadingConversation', true)
       setConnectionStatus('connecting')
+      
+      // Pequeno delay para dar tempo da animação aparecer
+      await new Promise(resolve => setTimeout(resolve, 300))
       
       const response = await fetch(`/api/conversations/${convId}/messages?userId=${userId}`)
       const data = await response.json()
@@ -157,14 +164,22 @@ export const AIAssistantInterface = React.forwardRef<
           }
         })
         
+        // Pequeno delay adicional para animação mais suave
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
         setMessages(loadedMessages)
         setConnectionStatus('connected')
         
-        // Focar no input após carregar
-        setTimeout(() => inputRef.current?.focus(), 100)
+        // Esconder loading com delay para transição suave
+        setTimeout(() => {
+          setShowConversationLoading(false)
+          // Focar no input após carregar
+          setTimeout(() => inputRef.current?.focus(), 100)
+        }, 200)
       }
     } catch (error) {
       setConnectionStatus('error')
+      setShowConversationLoading(false)
     } finally {
       updateLoadingState('loadingConversation', false)
     }
@@ -1205,6 +1220,14 @@ export const AIAssistantInterface = React.forwardRef<
           </div>
         </div>
       )}
+
+      {/* Conversation Loading Animation */}
+      <ConversationLoading 
+        isVisible={showConversationLoading}
+        onAnimationComplete={() => {
+          // Callback se necessário quando a animação completa
+        }}
+      />
     </div>
   )
 })
