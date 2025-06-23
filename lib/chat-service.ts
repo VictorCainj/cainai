@@ -1,5 +1,7 @@
 import { supabase } from './supabase'
 import { sessionManager } from './session'
+import { cacheService } from './cache-service'
+import { compressionService } from './compression-service'
 import type { ChatConversation, ChatMessage } from './supabase'
 
 export interface ConversationWithMessages extends ChatConversation {
@@ -145,6 +147,13 @@ class ChatService {
     
     try {
       const targetUserId = userId || sessionManager.getUserId()
+      
+      // Tentar cache primeiro
+      const cached = await cacheService.getCachedConversations(targetUserId)
+      if (cached) {
+        return cached
+      }
+
       let supabaseConversations: ConversationWithMessages[] = []
       let supabaseWorked = false
 
@@ -201,6 +210,8 @@ class ChatService {
       const localConversations = this.getFromLocalStorage()
 
       if (supabaseWorked && supabaseConversations.length > 0) {
+        // Salvar no cache e localStorage
+        await cacheService.cacheConversations(targetUserId, supabaseConversations)
         this.saveToLocalStorage(supabaseConversations)
         return supabaseConversations
       }
@@ -287,11 +298,20 @@ class ChatService {
     await this.initialize()
     
     try {
+      // Comprimir conteúdo se necessário
+      const compressedContent = compressionService.compressMessage(data.content, data.metadata)
+      
       const messageData = {
         conversation_id: data.conversationId,
         role: data.role,
-        content: data.content,
-        metadata: data.metadata || {},
+        content: compressedContent.compressed ? JSON.stringify(compressedContent) : data.content,
+        metadata: {
+          ...(data.metadata || {}),
+          compressed: compressedContent.compressed,
+          compressionRatio: compressedContent.compressed 
+            ? ((compressedContent.originalSize - compressedContent.compressedSize) / compressedContent.originalSize * 100)
+            : 0
+        },
         created_at: new Date().toISOString()
       }
 
@@ -302,6 +322,10 @@ class ChatService {
         }
         this.saveMessageLocally(localMessage)
         this.updateLocalConversationStats(data.conversationId, data.content)
+        
+        // Invalidar cache da conversa
+        cacheService.invalidateConversation(data.conversationId)
+        
         return localMessage
       }
 
@@ -319,11 +343,20 @@ class ChatService {
           }
           this.saveMessageLocally(localMessage)
           this.updateLocalConversationStats(data.conversationId, data.content)
+          cacheService.invalidateConversation(data.conversationId)
           return localMessage
         }
 
         this.saveMessageLocally(message)
         this.updateLocalConversationStats(data.conversationId, data.content)
+        
+        // Invalidar caches relacionados
+        cacheService.invalidateConversation(data.conversationId)
+        const userId = sessionManager.getUserId()
+        if (userId) {
+          cacheService.invalidateUserConversations(userId)
+        }
+        
         return message
       } catch (supabaseError) {
         const localMessage = {
@@ -332,6 +365,7 @@ class ChatService {
         }
         this.saveMessageLocally(localMessage)
         this.updateLocalConversationStats(data.conversationId, data.content)
+        cacheService.invalidateConversation(data.conversationId)
         return localMessage
       }
     } catch (error) {
@@ -422,7 +456,7 @@ class ChatService {
 
       // Log de debug
       if (process.env.NODE_ENV === 'development') {
-        console.log(`Tentando excluir conversa: ${conversationId} para usuário: ${userId}`)
+        // Debug log removido para produção
       }
 
       // Método 1: Tentar exclusão direta via RLS primeiro
@@ -523,7 +557,7 @@ class ChatService {
             throw new Error('Force delete retornou false')
           }
 
-          console.log('Exclusão via force delete bem-sucedida')
+          // Debug log removido
           this.removeConversationFromLocalStorage(conversationId)
           this.removeMessagesFromLocalStorage(conversationId)
           return true
@@ -549,7 +583,7 @@ class ChatService {
               throw new Error('Função admin retornou false')
             }
             
-            console.log('Exclusão via função admin bem-sucedida')
+            // Debug log removido
             this.removeConversationFromLocalStorage(conversationId)
             this.removeMessagesFromLocalStorage(conversationId)
             return true
@@ -558,7 +592,7 @@ class ChatService {
             console.error(`Todos os métodos de exclusão falharam: ${adminError}`)
             
             // Método 4: Exclusão apenas local como último recurso
-            console.log('Tentando exclusão apenas local')
+            // Debug log removido
             this.removeConversationFromLocalStorage(conversationId)
             this.removeMessagesFromLocalStorage(conversationId)
             

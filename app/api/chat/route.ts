@@ -94,6 +94,13 @@ Seguido de uma explicação em português sobre o que será criado.
 - Use formatação clara (listas, subtítulos)
 - Seja amigável, motivador e contextualizado
 
+**IMPORTANTE SOBRE CÓDIGOS E EXEMPLOS:**
+🚀 **SEMPRE forneça códigos COMPLETOS** quando solicitado - nunca truncar ou encurtar
+📝 **NUNCA use comentários como "// ... resto do código ..."** - sempre escreva tudo
+🔧 **Inclua todos os imports, funções e componentes necessários**
+💯 **Códigos devem estar prontos para uso imediato** sem necessidade de "completar"
+📚 **Se o código for muito extenso, divida em seções mas SEMPRE complete cada uma**
+
 **IMPORTANTE**: Use sua memória para dar respostas mais inteligentes e personalizadas!`
 
 interface MessageContext {
@@ -288,7 +295,7 @@ export async function POST(request: NextRequest) {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4-turbo-preview',
       messages: openAIMessages,
-      max_tokens: 1500,
+      max_tokens: 4096,
       temperature: 0.7,
       top_p: 0.9,
       frequency_penalty: 0.1,
@@ -358,7 +365,7 @@ export async function POST(request: NextRequest) {
             content: typeof message === 'string' ? message : 'Olá! Como posso ajudar com sua produtividade hoje?'
           }
         ],
-        max_tokens: 800,
+        max_tokens: 4096,
         temperature: 0.7,
       })
 

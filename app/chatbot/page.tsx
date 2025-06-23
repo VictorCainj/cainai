@@ -4,14 +4,15 @@ import React, { useRef, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AIAssistantInterface } from '@/components/ui/ai-assistant-interface'
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar'
+import { SettingsModal } from '@/components/ui/settings-modal'
 import { Sparkles, Loader2, Zap, Activity, MessageCircle, Settings, Home, Brain, History, LogOut, Plus, Clock, Trash2, Calendar } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { chatService } from '@/lib/chat-service'
 import { sessionManager } from '@/lib/session'
 import { Button } from '@/components/ui/button'
+import { UserMenu } from '@/components/auth/user-menu'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import Image from 'next/image'
 
 interface Conversation {
   id: string
@@ -39,6 +40,7 @@ export default function ChatbotPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loadingConversations, setLoadingConversations] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   
   // Obter userId
   const userId = sessionManager.getUserId() || user?.id
@@ -142,7 +144,8 @@ export default function ChatbotPage() {
     {
       label: "Configurações",
       href: "#",
-      icon: <Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      icon: <Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+      onClick: () => setShowSettings(true)
     }
   ]
 
@@ -411,21 +414,10 @@ export default function ChatbotPage() {
               </div>
             )}
           </div>
-          <div>
-            <SidebarLink
-              link={{
-                label: user?.user_metadata?.full_name || user?.email || "Usuário",
-                href: "#",
-                icon: (
-                  <Image
-                    src={user?.user_metadata?.avatar_url || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=50&h=50&fit=crop&crop=face"}
-                    className="h-7 w-7 flex-shrink-0 rounded-full"
-                    width={50}
-                    height={50}
-                    alt="Avatar"
-                  />
-                ),
-              }}
+          <div className="pb-2">
+            <UserMenu 
+              onOpenSettings={() => setShowSettings(true)}
+              variant="light"
             />
           </div>
         </SidebarBody>
@@ -437,6 +429,12 @@ export default function ChatbotPage() {
           <AIAssistantInterface ref={chatInterfaceRef} />
         </div>
       </div>
+
+      {/* Modal de Configurações */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   )
 } 

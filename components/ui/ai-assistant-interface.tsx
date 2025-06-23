@@ -11,7 +11,7 @@ import { sessionManager } from '@/lib/session'
 import Image from 'next/image'
 import { motion, AnimatePresence } from "framer-motion"
 import { TextShimmer } from '@/components/ui/text-shimmer'
-import { CodeEditorSheetComposed } from '@/components/ui/code-editor-sheet'
+import { InlineCodePanel } from '@/components/ui/inline-code-panel'
 import { useTTSSettings } from '@/components/chat/tts-voice-selector'
 
 type Message = {
@@ -421,7 +421,7 @@ export const AIAssistantInterface = React.forwardRef<
         [messageId]: { playing: false, loading: true }
       }))
 
-      console.log(`🎵 Gerando TTS para mensagem ${messageId} com voz ${voice}`)
+              // Debug log removido
       const startTime = Date.now()
 
       // Fazer chamada para API de TTS melhorada
@@ -454,7 +454,7 @@ export const AIAssistantInterface = React.forwardRef<
       const textLength = response.headers.get('X-Text-Length')
       const voiceUsed = response.headers.get('X-Voice-Used')
 
-      console.log(`🎵 TTS gerado em ${generationTime}ms para ${textLength} caracteres com voz ${voiceUsed}`)
+                // Debug log removido
 
       // Criar blob de áudio
       const audioBlob = await response.blob()
@@ -463,7 +463,7 @@ export const AIAssistantInterface = React.forwardRef<
 
       // Configurar eventos do áudio
       audio.onplay = () => {
-        console.log(`🎵 Reproduzindo áudio para mensagem ${messageId}`)
+        // Debug log removido
         setAudioState(prev => ({
           ...prev,
           [messageId]: { ...prev[messageId], playing: true, loading: false }
@@ -471,7 +471,7 @@ export const AIAssistantInterface = React.forwardRef<
       }
 
       audio.onpause = () => {
-        console.log(`⏸️ Áudio pausado para mensagem ${messageId}`)
+        // Debug log removido
         setAudioState(prev => ({
           ...prev,
           [messageId]: { ...prev[messageId], playing: false }
@@ -479,7 +479,7 @@ export const AIAssistantInterface = React.forwardRef<
       }
 
       audio.onended = () => {
-        console.log(`✅ Áudio finalizado para mensagem ${messageId}`)
+        // Debug log removido
         setAudioState(prev => ({
           ...prev,
           [messageId]: { ...prev[messageId], playing: false }
@@ -505,7 +505,7 @@ export const AIAssistantInterface = React.forwardRef<
       await audio.play()
       
       const totalTime = Date.now() - startTime
-      console.log(`🎵 TTS completo em ${totalTime}ms`)
+      // Debug log removido
 
     } catch (error) {
       console.error('🎵 TTS Error:', error)
@@ -589,55 +589,18 @@ export const AIAssistantInterface = React.forwardRef<
            /\b(function|const|let|var|class|import|export|def|public|private)\b/.test(content)
   }
 
+
+
   // Componente para renderizar código com destaque
-  const CodeHighlight = ({ language, code, messageId }: { language: string, code: string, messageId: string }) => (
-    <div className="my-4 relative group">
-      <div className="bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden border">
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-900 border-b">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase">
-            {language || 'code'}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => copyMessage(code, `${messageId}-code`)}
-              className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              {copiedMessageId === `${messageId}-code` ? (
-                <CheckCircle2 className="h-3 w-3" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-            </Button>
-            <CodeEditorSheetComposed
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Code className="h-3 w-3 mr-1" />
-                  Editar
-                </Button>
-              }
-              title={`Editor de ${language.toUpperCase()}`}
-              description="Editar e personalizar o código"
-              defaultLanguage={language as any}
-              defaultValue={code}
-              onSave={(editedCode, lang) => {
-                console.log(`Código ${lang} salvo:`, editedCode)
-                // Aqui você pode implementar lógica para salvar/usar o código editado
-              }}
-            />
-          </div>
-        </div>
-        <pre className="p-4 text-sm overflow-x-auto">
-          <code className="text-gray-800 dark:text-gray-200">{code}</code>
-        </pre>
-      </div>
-    </div>
-  )
+  const CodeHighlight = ({ language, code, messageId }: { language: string, code: string, messageId: string }) => {
+    return (
+      <InlineCodePanel
+        title={`Código ${language.toUpperCase()}`}
+        language={language}
+        code={code}
+      />
+    );
+  }
 
   const renderMessage = (content: string, messageRole: 'user' | 'assistant' = 'assistant', messageId?: string) => {
     // Detectar blocos de código primeiro
@@ -653,14 +616,14 @@ export const AIAssistantInterface = React.forwardRef<
           const textBefore = content.slice(lastIndex, block.start)
           if (textBefore.trim()) {
             parts.push(
-              <div key={`text-${blockIndex}`} className="mb-2">
+              <div key={`text-${blockIndex}`} className="mb-4">
                 {renderTextContent(textBefore, messageRole)}
               </div>
             )
           }
         }
         
-        // Adicionar bloco de código
+        // Adicionar bloco de código diretamente
         parts.push(
           <CodeHighlight 
             key={`code-${blockIndex}`}
@@ -678,7 +641,7 @@ export const AIAssistantInterface = React.forwardRef<
         const textAfter = content.slice(lastIndex)
         if (textAfter.trim()) {
           parts.push(
-            <div key="text-after" className="mt-2">
+            <div key="text-after" className="mt-4">
               {renderTextContent(textAfter, messageRole)}
             </div>
           )
@@ -693,7 +656,10 @@ export const AIAssistantInterface = React.forwardRef<
   }
 
   const renderTextContent = (content: string, messageRole: 'user' | 'assistant' = 'assistant') => {
-    return content
+    // Remover blocos de código primeiro para não renderizá-los inline
+    const contentWithoutCodeBlocks = content.replace(/```[\s\S]*?```/g, '')
+    
+    return contentWithoutCodeBlocks
       .split('\n')
       .map((line, index) => {
         // Headers # ## ###
@@ -756,7 +722,7 @@ export const AIAssistantInterface = React.forwardRef<
         // Negrito **texto**
         const processedLine = line.replace(/\*\*(.*?)\*\*/g, `<strong class="${messageRole === 'user' ? 'text-white font-semibold' : 'text-gray-800 font-semibold'}">$1</strong>`)
         
-        return line ? (
+        return line.trim() ? (
           <div key={index} className={`my-1 ${messageRole === 'user' ? 'text-white leading-relaxed' : 'text-gray-700'}`}>
             {messageRole === 'assistant' ? (
               <TextShimmer duration={3} spread={1.5}>
@@ -930,9 +896,6 @@ export const AIAssistantInterface = React.forwardRef<
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                  <Mic className="w-5 h-5" />
-                </button>
                 <button
                   onClick={sendMessage}
                   disabled={!inputValue.trim() || isAnyLoading}
@@ -1188,6 +1151,8 @@ export const AIAssistantInterface = React.forwardRef<
                 />
               </div>
             </div>
+            
+
             
             <button
               onClick={sendMessage}

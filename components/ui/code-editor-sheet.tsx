@@ -94,10 +94,10 @@ const PLACEHOLDERS: Record<CodeLanguage, string> = {
   font-size: 16px;
 }`,
   javascript: `// Hello World in JavaScript
-console.log("Hello, World!");`,
+// console.log("Hello, World!");`,
   typescript: `// Hello World in TypeScript
 const message: string = "Hello, World!";
-console.log(message);`,
+// console.log(message);`,
   html: `<!-- Hello World in HTML -->
 <h1>Hello, World!</h1>`,
   json: `{

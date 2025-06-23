@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       processedText += '.'
     }
 
-    console.log(`🎵 TTS Request: ${processedText.length} chars, voice: ${voice}, speed: ${speed}`)
+    // Debug log removido
 
     const startTime = Date.now()
 
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await response.arrayBuffer())
     const generationTime = Date.now() - startTime
 
-    console.log(`🎵 TTS Success: ${buffer.length} bytes in ${generationTime}ms`)
+    // Debug log removido
 
     return new NextResponse(buffer, {
       status: 200,

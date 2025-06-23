@@ -5,6 +5,8 @@ import { MessageCircle, Plus, Search, Clock, Check, CheckCheck, Trash2, MoreVert
 import { useAuth } from '@/lib/auth-context'
 import { sessionManager } from '@/lib/session'
 import { chatService } from '@/lib/chat-service'
+import { lazyLoadingService } from '@/lib/lazy-loading-service'
+import { ConversationVirtualScroll } from '@/components/ui/virtual-scrolling'
 import { Button } from '@/components/ui/button'
 import { UserMenu } from '@/components/auth/user-menu'
 
@@ -45,6 +47,12 @@ export function ConversationSidebar({
   const [showMigrationPrompt, setShowMigrationPrompt] = useState(false)
   const [migrating, setMigrating] = useState(false)
   const [menuOpen, setMenuOpen] = useState<string | null>(null)
+  
+  // Estados para lazy loading e virtual scrolling
+  const [currentPage, setCurrentPage] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [useVirtualScrolling, setUseVirtualScrolling] = useState(false)
 
   // Obter userId
   const userId = sessionManager.getUserId() || user?.id
@@ -61,16 +69,42 @@ export function ConversationSidebar({
     }
   }, [showDeleteMenu])
 
-  // Carregar conversas reais do Supabase
-  const loadConversations = async () => {
+  // Carregar conversas reais do Supabase com lazy loading
+  const loadConversations = async (page: number = 0, isLoadMore: boolean = false) => {
     if (!userId) {
       setLoading(false)
       return
     }
 
     try {
-      setLoading(true)
-      const conversationsData = await chatService.getUserConversations(userId)
+      if (!isLoadMore) {
+        setLoading(true)
+      } else {
+        setLoadingMore(true)
+      }
+
+      // Verificar se deve usar lazy loading baseado no número de conversas
+      const shouldUseLazyLoading = conversations.length > 50 || isLoadMore
+
+      let conversationsData: any[]
+      let hasMoreData = false
+
+      if (shouldUseLazyLoading) {
+        // Usar lazy loading service
+        const result = await lazyLoadingService.loadConversations(userId, page)
+        conversationsData = result.conversations
+        hasMoreData = result.hasMore
+        setHasMore(hasMoreData)
+        
+        // Ativar virtual scrolling se há muitas conversas
+        if (result.totalCount > 100) {
+          setUseVirtualScrolling(true)
+        }
+      } else {
+        // Usar método tradicional
+        conversationsData = await chatService.getUserConversations(userId)
+        setHasMore(false)
+      }
       
       if (conversationsData && conversationsData.length > 0) {
         // Converter dados da API para o formato do componente
@@ -88,15 +122,33 @@ export function ConversationSidebar({
           message_count: conv.message_count || 0
         }))
         
-        setConversations(formattedConversations)
+        if (isLoadMore) {
+          // Adicionar às conversas existentes
+          setConversations(prev => [...prev, ...formattedConversations])
+        } else {
+          // Substituir conversas
+          setConversations(formattedConversations)
+        }
+
+        setCurrentPage(page)
+        
+        // Pré-carregar próxima página se aplicável
+        if (shouldUseLazyLoading && hasMoreData) {
+          lazyLoadingService.preloadNextConversations(userId, page)
+        }
       } else {
-        setConversations([])
+        if (!isLoadMore) {
+          setConversations([])
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar conversas:', error)
-      setConversations([])
+      if (!isLoadMore) {
+        setConversations([])
+      }
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
   }
 
@@ -183,11 +235,18 @@ export function ConversationSidebar({
   // Recarregar conversas a cada 2 minutos para capturar novas conversas (menos frequente)
   useEffect(() => {
     const interval = setInterval(() => {
-      loadConversations()
+      loadConversations(0, false) // Reset para página 0
     }, 120000) // 2 minutos ao invés de 30 segundos
 
     return () => clearInterval(interval)
   }, [userId])
+
+  // Função para carregar mais conversas (lazy loading)
+  const loadMoreConversations = () => {
+    if (!loadingMore && hasMore && userId) {
+      loadConversations(currentPage + 1, true)
+    }
+  }
 
   // Função para formatar timestamp
   const formatTimestamp = (dateString: string) => {
@@ -271,7 +330,7 @@ export function ConversationSidebar({
         }
         
         // Se chegou aqui, deu sucesso na API
-        console.log('Conversa excluída via API com sucesso')
+        // Debug log removido
         setConversations(prev => prev.filter(conv => conv.id !== conversationId))
         showNotification('Conversa excluída com sucesso!', 'success')
         
@@ -291,7 +350,7 @@ export function ConversationSidebar({
           }
           
           // Se chegou aqui, deu sucesso no chat-service
-          console.log('Conversa excluída via chat-service com sucesso')
+          // Debug log removido
           setConversations(prev => prev.filter(conv => conv.id !== conversationId))
           showNotification('Conversa excluída com sucesso!', 'success')
           
@@ -304,7 +363,7 @@ export function ConversationSidebar({
       }
 
       // Método 3: Exclusão apenas local como último recurso
-      console.log('Tentando exclusão apenas local...')
+      // Debug log removido
       
       // Remover da lista local mesmo que o servidor tenha falhado
       setConversations(prev => prev.filter(conv => conv.id !== conversationId))
@@ -414,8 +473,8 @@ export function ConversationSidebar({
 
       {/* Conversations List */}
       <div className="flex-1 overflow-hidden relative z-10">
-        <div className="h-full overflow-y-auto custom-scrollbar p-2">
-          {loading ? (
+        {loading ? (
+          <div className="h-full overflow-y-auto custom-scrollbar p-2">
             <div className="space-y-3 p-2">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg p-3 animate-pulse shadow-sm">
@@ -426,7 +485,9 @@ export function ConversationSidebar({
                 </div>
               ))}
             </div>
-          ) : filteredConversations.length === 0 ? (
+          </div>
+        ) : filteredConversations.length === 0 ? (
+          <div className="h-full overflow-y-auto custom-scrollbar p-2">
             <div className="p-4 text-center">
               <div className="bg-white dark:bg-neutral-700 border border-gray-200 dark:border-neutral-600 rounded-lg p-6 shadow-sm">
                 <MessageSquare className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-3" />
@@ -440,7 +501,21 @@ export function ConversationSidebar({
                 )}
               </div>
             </div>
-          ) : (
+          </div>
+        ) : useVirtualScrolling ? (
+          // Virtual Scrolling para listas grandes
+          <ConversationVirtualScroll
+            conversations={filteredConversations}
+            onSelectConversation={onSelectConversation}
+            currentConversationId={currentConversationId}
+            isLoading={loadingMore}
+            onLoadMore={loadMoreConversations}
+            hasMore={hasMore}
+            className="h-full custom-scrollbar"
+          />
+        ) : (
+          // Scrolling tradicional para listas menores
+          <div className="h-full overflow-y-auto custom-scrollbar p-2">
             <div className="space-y-2">
               {filteredConversations.map((conversation, index) => (
                 <div
@@ -541,9 +616,17 @@ export function ConversationSidebar({
                   </div>
                 </div>
               ))}
+              
+              {/* Loading more indicator */}
+              {loadingMore && (
+                <div className="flex items-center justify-center p-4">
+                  <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+                  <span className="ml-2 text-sm text-gray-500">Carregando mais...</span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* User Info Footer */}

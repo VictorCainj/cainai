@@ -34,7 +34,7 @@ export function ChatHeader({ conversationTitle, isOnline, lastSeen, context7Stat
     onToggle: localTTSSettings.toggleEnabled
   }
 
-  console.log('🎵 ChatHeader TTS Settings:', effectiveTTSSettings)
+      // Debug log removido
 
   return (
     <header className="neutral-panel border-0 border-b border-border-primary bg-bg-secondary">
