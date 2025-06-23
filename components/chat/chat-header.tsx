@@ -23,7 +23,7 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ conversationTitle, isOnline, lastSeen, context7Status, ttsSettings }: ChatHeaderProps) {
-  // Debug: usar hook local para garantir que funciona
+  // Usar hook local como fallback
   const localTTSSettings = useTTSSettings()
   
   // Usar configurações passadas ou as locais como fallback
@@ -34,7 +34,7 @@ export function ChatHeader({ conversationTitle, isOnline, lastSeen, context7Stat
     onToggle: localTTSSettings.toggleEnabled
   }
 
-      // Debug log removido
+
 
   return (
     <header className="neutral-panel border-0 border-b border-border-primary bg-bg-secondary">
@@ -77,7 +77,7 @@ export function ChatHeader({ conversationTitle, isOnline, lastSeen, context7Stat
 
           {/* Right: TTS, Context7 e Status */}
           <div className="flex items-center space-x-3">
-            {/* TTS Voice Selector - Sempre mostrar para debug */}
+            {/* TTS Voice Selector */}
             <TTSVoiceSelector
               selectedVoice={effectiveTTSSettings.selectedVoice}
               onVoiceChange={effectiveTTSSettings.onVoiceChange}
