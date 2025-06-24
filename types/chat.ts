@@ -9,6 +9,17 @@ export interface Message {
   imageUrl?: string
   audioUrl?: string
   metadata?: MessageMetadata
+  audioTranscription?: AudioTranscriptionData
+}
+
+export interface AudioTranscriptionData {
+  transcriptionId: string
+  originalText: string
+  summary: string
+  duration: number
+  confidence: number
+  language?: string
+  isProcessed: boolean
 }
 
 export interface MessageMetadata {
@@ -17,6 +28,7 @@ export interface MessageMetadata {
   model?: string
   ttsGenerated?: boolean
   imageGenerated?: boolean
+  audioTranscribed?: boolean
   context7Used?: boolean
   cacheHit?: boolean
 }

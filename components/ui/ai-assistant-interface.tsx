@@ -6,7 +6,7 @@ import {
   Send, Bot, User, Loader2, Copy, CheckCircle2, AlertCircle, 
   Search, Mic, ArrowUp, Plus, FileText, Code, BookOpen, 
   PenTool, BrainCircuit, Play, Pause, Download, Eye, X, Volume2, VolumeX, BarChart3, 
-  Shield, LogIn 
+  Shield, LogIn, FileAudio
 } from 'lucide-react'
 import { sessionManager } from '@/lib/session'
 import { useAuth } from '@/lib/auth-context'
@@ -17,6 +17,9 @@ import { InlineCodePanel } from '@/components/ui/inline-code-panel'
 import { AdvancedTextRenderer } from '@/components/ui/advanced-text-renderer'
 import { useTTSSettings } from '@/components/chat/tts-voice-selector'
 import { ConversationLoading } from '@/components/ui/conversation-loading'
+import { AudioUploader } from '@/components/chat/audio-uploader'
+import { AudioTranscriptDisplay } from '@/components/chat/audio-transcript-display'
+import { TranscriptionResult } from '@/types/audio'
 
 type Message = {
   id: string
@@ -25,6 +28,7 @@ type Message = {
   timestamp: Date
   created_at?: string
   imageUrl?: string
+  audioTranscription?: TranscriptionResult
 }
 
 type LoadingState = {
@@ -74,6 +78,10 @@ export const AIAssistantInterface = React.forwardRef<
   const [audioState, setAudioState] = useState<AudioState>({})
   const [fullImageView, setFullImageView] = useState<string | null>(null)
   const [showConversationLoading, setShowConversationLoading] = useState(false)
+  
+  // Estados para upload de áudio
+  const [showAudioUploader, setShowAudioUploader] = useState(false)
+  const [audioTranscriptions, setAudioTranscriptions] = useState<Map<string, TranscriptionResult>>(new Map())
   
   // Estados do design moderno
   const [searchEnabled, setSearchEnabled] = useState(false)
@@ -552,6 +560,42 @@ export const AIAssistantInterface = React.forwardRef<
       }
     })
     setAudioState({})
+  }
+
+  // Funções de upload de áudio
+  const handleAudioUploadClick = () => {
+    setShowAudioUploader(true)
+  }
+
+  const handleAudioTranscriptionComplete = async (result: TranscriptionResult) => {
+    // Salvar transcrição
+    setAudioTranscriptions(prev => new Map(prev.set(result.id, result)))
+
+    // Criar mensagem com resumo da transcrição
+    const audioMessage: Message = {
+      id: `audio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      role: 'user',
+      content: `🎵 **Áudio transcrito:**\n\n**Resumo:** ${result.summary}\n\n**Duração:** ${(result.duration / 60).toFixed(1)} minutos\n**Confiança:** ${Math.round(result.confidence * 100)}%`,
+      timestamp: new Date()
+    }
+
+    // Adicionar mensagem ao chat
+    setMessages(prev => [...prev, audioMessage])
+
+    // Enviar o resumo para a IA processar automaticamente
+    setTimeout(() => {
+      setInputValue(`Baseado nesta transcrição de áudio: "${result.summary}", me ajude a entender os pontos principais e responda qualquer pergunta que eu possa ter.`)
+      // Auto-enviar após pequeno delay
+      setTimeout(() => sendMessage(), 500)
+    }, 1000)
+
+    // Fechar uploader
+    setShowAudioUploader(false)
+  }
+
+  const handleAudioUploadError = (error: string) => {
+    console.error('Erro no upload de áudio:', error)
+    // Mostrar erro sem fechar o uploader
   }
 
   // Limpar áudios quando componente desmonta
@@ -1093,6 +1137,17 @@ export const AIAssistantInterface = React.forwardRef<
       <div className="border-t border-gray-200/50 bg-gradient-to-r from-white via-blue-50/20 to-indigo-50/20 backdrop-blur-sm p-8">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-end space-x-6">
+            {/* Audio Upload Button */}
+            <motion.button
+              onClick={handleAudioUploadClick}
+              className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 hover:from-blue-100 hover:to-indigo-100 border border-blue-200/50 shadow-lg hover:shadow-xl transition-all duration-300"
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              title="Upload de áudio para transcrição"
+            >
+              <FileAudio className="w-6 h-6" />
+            </motion.button>
+
             <div className="flex-1">
               <div className="bg-white/80 backdrop-blur-sm border border-gray-200/60 rounded-3xl p-5 shadow-2xl shadow-gray-500/10 hover:shadow-gray-500/15 transition-all duration-300">
                 <textarea
@@ -1196,6 +1251,64 @@ export const AIAssistantInterface = React.forwardRef<
           // Callback se necessário quando a animação completa
         }}
       />
+
+      {/* Audio Upload Modal */}
+      <AnimatePresence>
+        {showAudioUploader && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowAudioUploader(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="relative w-full max-w-2xl mx-4 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <FileAudio className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                      Upload de Áudio
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Envie arquivos de áudio para transcrição automática
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => setShowAudioUploader(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-xl"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6">
+                <AudioUploader
+                  onTranscriptionComplete={handleAudioTranscriptionComplete}
+                  onError={handleAudioUploadError}
+                  autoSubmitToChat={true}
+                  maxFiles={3}
+                  showResults={true}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 })
