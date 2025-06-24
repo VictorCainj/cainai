@@ -33,16 +33,24 @@ export function AdvancedTextRenderer({
   const [copiedElement, setCopiedElement] = useState<string | null>(null)
   const [revealedSpoilers, setRevealedSpoilers] = useState<Set<number>>(new Set())
 
-  // Processar texto usando o formatador avançado (versão simplificada)
+  // Processar texto usando o formatador avançado (apenas negrito)
   const formattedElements = useMemo(() => {
-    // Por enquanto, apenas retorna o texto como está para evitar bugs
-    return [{
-      type: 'text' as const,
-      content: content || '',
-      className: '',
-      metadata: {}
-    }]
-  }, [content])
+    try {
+      return advancedTextFormatter.formatText(content || '', {
+        allowMarkdown: true,
+        allowEmojis: false,
+        ...options
+      })
+    } catch (error) {
+      console.error('Erro no formatador:', error)
+      return [{
+        type: 'text' as const,
+        content: content || '',
+        className: '',
+        metadata: {}
+      }]
+    }
+  }, [content, options])
 
   // Copiar texto para clipboard
   const copyToClipboard = useCallback(async (text: string, elementId: string) => {
@@ -73,8 +81,8 @@ export function AdvancedTextRenderer({
     const elementId = `element-${index}`
     const isRevealed = revealedSpoilers.has(index)
 
-    // Estilos base do elemento (simplificado)
-    const baseStyles = {}
+    // Estilos base do elemento
+    const baseStyles = advancedTextFormatter.getElementStyles(element)
     const roleStyles = messageRole === 'user' 
       ? { color: 'white' } 
       : {}
