@@ -5,13 +5,16 @@ import { Button } from '@/components/ui/button'
 import { 
   Send, Bot, User, Loader2, Copy, CheckCircle2, AlertCircle, 
   Search, Mic, ArrowUp, Plus, FileText, Code, BookOpen, 
-  PenTool, BrainCircuit, Play, Pause, Download, Eye, X, Volume2, VolumeX 
+  PenTool, BrainCircuit, Play, Pause, Download, Eye, X, Volume2, VolumeX, BarChart3, 
+  Shield, LogIn 
 } from 'lucide-react'
 import { sessionManager } from '@/lib/session'
+import { useAuth } from '@/lib/auth-context'
 import Image from 'next/image'
 import { motion, AnimatePresence } from "framer-motion"
 import { TextShimmer } from '@/components/ui/text-shimmer'
 import { InlineCodePanel } from '@/components/ui/inline-code-panel'
+import { AdvancedTextRenderer } from '@/components/ui/advanced-text-renderer'
 import { useTTSSettings } from '@/components/chat/tts-voice-selector'
 import { ConversationLoading } from '@/components/ui/conversation-loading'
 
@@ -40,16 +43,21 @@ type AudioState = {
   }
 }
 
-type CodeBlock = {
-  language: string
-  code: string
-  start: number
-  end: number
+// CodeBlock removido - agora definido internamente no AdvancedTextFormatter
+
+interface AIAssistantInterfaceProps {
+  onOpenSummaryPanel?: () => void
 }
 
 export const AIAssistantInterface = React.forwardRef<
-  { startNewConversation: () => void; loadConversation: (id: string) => void; conversationId: string | null }
+  { startNewConversation: () => void; loadConversation: (id: string) => void; conversationId: string | null },
+  AIAssistantInterfaceProps
 >((props, ref) => {
+  const { onOpenSummaryPanel } = props
+  
+  // Hook de autenticação
+  const { user, isAuthenticated } = useAuth()
+  
   // Estados do chatbot real
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
@@ -75,8 +83,8 @@ export const AIAssistantInterface = React.forwardRef<
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  // Usar o session manager para obter userId
-  const userId = sessionManager.getUserId()
+  // Usar o usuário autenticado ou fallback para session manager
+  const userId = user?.id || sessionManager.getUserId()
 
   // Configurações de TTS
   const ttsSettings = useTTSSettings()
@@ -579,283 +587,90 @@ export const AIAssistantInterface = React.forwardRef<
     })
   }
 
-  // Função para detectar blocos de código
-  const detectCodeBlocks = (content: string): CodeBlock[] => {
-    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g
-    const blocks: CodeBlock[] = []
-    let match
+  // Funções de detecção de código removidas - agora integradas no AdvancedTextRenderer
 
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      blocks.push({
-        language: match[1] || 'text',
-        code: match[2].trim(),
-        start: match.index,
-        end: match.index + match[0].length
-      })
-    }
-
-    return blocks
-  }
-
-  // Função para detectar se a mensagem contém código
-  const hasCodeContent = (content: string): boolean => {
-    return detectCodeBlocks(content).length > 0 || 
-           content.includes('```') || 
-           /\b(function|const|let|var|class|import|export|def|public|private)\b/.test(content)
-  }
-
-
-
-  // Componente para renderizar código com destaque
-  const CodeHighlight = ({ language, code, messageId }: { language: string, code: string, messageId: string }) => {
-    return (
-      <InlineCodePanel
-        title={`Código ${language.toUpperCase()}`}
-        language={language}
-        code={code}
-      />
-    );
-  }
-
-  const renderMessage = (content: string, messageRole: 'user' | 'assistant' = 'assistant', messageId?: string) => {
-    // Detectar blocos de código primeiro
-    const codeBlocks = detectCodeBlocks(content)
-    
-    if (codeBlocks.length > 0) {
-      const parts = []
-      let lastIndex = 0
-      
-      codeBlocks.forEach((block, blockIndex) => {
-        // Adicionar texto antes do bloco de código
-        if (block.start > lastIndex) {
-          const textBefore = content.slice(lastIndex, block.start)
-          if (textBefore.trim()) {
-            parts.push(
-              <div key={`text-${blockIndex}`} className="mb-4">
-                {renderTextContent(textBefore, messageRole)}
-              </div>
-            )
-          }
-        }
-        
-        // Adicionar bloco de código diretamente
-        parts.push(
-          <CodeHighlight 
-            key={`code-${blockIndex}`}
-            language={block.language}
-            code={block.code}
-            messageId={messageId || 'unknown'}
-          />
-        )
-        
-        lastIndex = block.end
-      })
-      
-      // Adicionar texto após o último bloco
-      if (lastIndex < content.length) {
-        const textAfter = content.slice(lastIndex)
-        if (textAfter.trim()) {
-          parts.push(
-            <div key="text-after" className="mt-4">
-              {renderTextContent(textAfter, messageRole)}
-            </div>
-          )
-        }
-      }
-      
-      return parts
-    }
-    
-    // Se não há código, renderizar normalmente
-    return renderTextContent(content, messageRole)
-  }
-
-  const renderTextContent = (content: string, messageRole: 'user' | 'assistant' = 'assistant') => {
-    // Remover blocos de código primeiro para não renderizá-los inline
-    const contentWithoutCodeBlocks = content.replace(/```[\s\S]*?```/g, '')
-    
-    return contentWithoutCodeBlocks
-      .split('\n')
-      .map((line, index) => {
-        // Headers # ## ###
-        if (line.match(/^#{1,6}\s/)) {
-          const level = line.match(/^#+/)?.[0].length || 1
-          const headerText = line.replace(/^#+\s/, '')
-          const headerClass = messageRole === 'user' 
-            ? `text-white font-bold my-2 ${level === 1 ? 'text-lg' : level === 2 ? 'text-base' : 'text-sm'}` 
-            : `text-gray-800 font-bold my-2 ${level === 1 ? 'text-lg' : level === 2 ? 'text-base' : 'text-sm'}`
-          
-          return (
-            <div key={index} className={headerClass}>
-              {messageRole === 'assistant' ? (
-                <TextShimmer duration={2.5} spread={1} className="font-bold">
-                  {headerText}
-                </TextShimmer>
-              ) : (
-                headerText
-              )}
-            </div>
-          )
-        }
-
-        // Bullet points
-        if (line.startsWith('• ') || line.startsWith('- ') || line.match(/^\s*[\*\-]\s/)) {
-          const bulletText = line.replace(/^\s*[\*\-•]\s/, '')
-          return (
-            <div key={index} className="flex items-start space-x-2 my-1">
-              <span className={messageRole === 'user' ? "text-white/80 mt-1" : "text-blue-600 mt-1"}>•</span>
-              <span className={messageRole === 'user' ? "text-white" : "text-gray-700"}>
-                {messageRole === 'assistant' ? (
-                  <TextShimmer duration={3} spread={1.2}>
-                    {bulletText}
-                  </TextShimmer>
-                ) : (
-                  bulletText
-                )}
-              </span>
-            </div>
-          )
-        }
-
-        // Código inline `code`
-        if (line.includes('`') && !line.includes('```')) {
-          const codeInlineRegex = /`([^`]+)`/g
-          const processedLine = line.replace(codeInlineRegex, (match, code) => {
-            return `<code class="${messageRole === 'user' ? 'bg-white/20 text-white px-2 py-1 rounded text-sm font-mono' : 'bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-sm font-mono text-gray-800 dark:text-gray-200'}">${code}</code>`
-          })
-          
-          return (
-            <div key={index} className={`my-1 ${messageRole === 'user' ? 'text-white' : 'text-gray-700'}`}>
-              <span 
-                dangerouslySetInnerHTML={{ __html: processedLine }} 
-                className={messageRole === 'user' ? 'text-white' : 'text-gray-700'}
-              />
-            </div>
-          )
-        }
-
-        // Negrito **texto**
-        const processedLine = line.replace(/\*\*(.*?)\*\*/g, `<strong class="${messageRole === 'user' ? 'text-white font-semibold' : 'text-gray-800 font-semibold'}">$1</strong>`)
-        
-        return line.trim() ? (
-          <div key={index} className={`my-1 ${messageRole === 'user' ? 'text-white leading-relaxed' : 'text-gray-700'}`}>
-            {messageRole === 'assistant' ? (
-              <TextShimmer duration={3} spread={1.5}>
-                {line.replace(/\*\*(.*?)\*\*/g, '$1')}
-              </TextShimmer>
-            ) : (
-              <span 
-                dangerouslySetInnerHTML={{ __html: processedLine }} 
-                className={`whitespace-pre-wrap break-words ${messageRole === 'user' ? 'text-white' : 'text-gray-700'}`}
-              />
-            )}
-          </div>
-        ) : (
-          <br key={index} />
-        )
-      })
-  }
+  // Funções antigas de renderização removidas - agora usando AdvancedTextRenderer
 
   if (messages.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-white p-6">
-        <div className="w-full max-w-3xl mx-auto flex flex-col items-center">
-          {/* Logo with animated gradient */}
-          <div className="mb-8 w-20 h-20 relative">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 200 200"
-              width="100%"
-              height="100%"
-              className="w-full h-full"
-            >
-              <g clipPath="url(#cs_clip_1_ellipse-12)">
-                <mask
-                  id="cs_mask_1_ellipse-12"
-                  style={{ maskType: "alpha" }}
-                  width="200"
-                  height="200"
-                  x="0"
-                  y="0"
-                  maskUnits="userSpaceOnUse"
-                >
-                  <path
-                    fill="#fff"
-                    fillRule="evenodd"
-                    d="M100 150c27.614 0 50-22.386 50-50s-22.386-50-50-50-50 22.386-50 50 22.386 50 50 50zm0 50c55.228 0 100-44.772 100-100S155.228 0 100 0 0 44.772 0 100s44.772 100 100 100z"
-                    clipRule="evenodd"
-                  ></path>
-                </mask>
-                <g mask="url(#cs_mask_1_ellipse-12)">
-                  <path fill="#fff" d="M200 0H0v200h200V0z"></path>
-                  <path
-                    fill="#0066FF"
-                    fillOpacity="0.33"
-                    d="M200 0H0v200h200V0z"
-                  ></path>
-                  <g
-                    filter="url(#filter0_f_844_2811)"
-                    className="animate-gradient"
-                  >
-                    <path fill="#0066FF" d="M110 32H18v68h92V32z"></path>
-                    <path fill="#0044FF" d="M188-24H15v98h173v-98z"></path>
-                    <path fill="#0099FF" d="M175 70H5v156h170V70z"></path>
-                    <path fill="#00CCFF" d="M230 51H100v103h130V51z"></path>
-                  </g>
-                </g>
-              </g>
-              <defs>
-                <filter
-                  id="filter0_f_844_2811"
-                  width="385"
-                  height="410"
-                  x="-75"
-                  y="-104"
-                  colorInterpolationFilters="sRGB"
-                  filterUnits="userSpaceOnUse"
-                >
-                  <feFlood floodOpacity="0" result="BackgroundImageFix"></feFlood>
-                  <feBlend
-                    in="SourceGraphic"
-                    in2="BackgroundImageFix"
-                    result="shape"
-                  ></feBlend>
-                  <feGaussianBlur
-                    result="effect1_foregroundBlur_844_2811"
-                    stdDeviation="40"
-                  ></feGaussianBlur>
-                </filter>
-                <clipPath id="cs_clip_1_ellipse-12">
-                  <path fill="#fff" d="M0 0H200V200H0z"></path>
-                </clipPath>
-              </defs>
-            </svg>
-          </div>
-
-          {/* Welcome message */}
-          <div className="mb-10 text-center">
+      <div className="h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-8 relative overflow-hidden">
+        {/* Animated Background Particles */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {Array.from({ length: 6 }).map((_, i) => (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
+              key={i}
+              className="absolute w-2 h-2 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full opacity-20"
+              initial={{ 
+                x: Math.random() * window.innerWidth, 
+                y: Math.random() * window.innerHeight,
+                scale: 0.5
+              }}
+              animate={{ 
+                x: Math.random() * window.innerWidth, 
+                y: Math.random() * window.innerHeight,
+                scale: [0.5, 1, 0.5]
+              }}
+              transition={{ 
+                duration: Math.random() * 10 + 10,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="w-full max-w-4xl mx-auto flex flex-col items-center relative z-10">
+          {/* Enhanced Logo with 3D Effects */}
+          <motion.div 
+            className="mb-12 w-24 h-24 relative"
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.6, type: "spring", stiffness: 100 }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 rounded-3xl shadow-2xl shadow-blue-500/30 animate-pulse"></div>
+            <div className="relative w-full h-full bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-600 rounded-3xl flex items-center justify-center shadow-xl">
+              <Bot className="w-12 h-12 text-white drop-shadow-lg" />
+            </div>
+          </motion.div>
+
+          {/* Enhanced Welcome Message */}
+          <div className="mb-12 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex flex-col items-center"
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="flex flex-col items-center space-y-4"
             >
-              <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-blue-400 mb-2">
-                Ready to assist you
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-700 bg-clip-text text-transparent mb-3">
+                🤖 CDI Assistant
               </h1>
-              <p className="text-gray-500 max-w-md">
-                Ask me anything or try one of the suggestions below
+              <p className="text-gray-600 max-w-2xl text-lg leading-relaxed">
+                Seu assistente inteligente com super memória. Posso lembrar de tudo que discutimos, 
+                gerar imagens incríveis e muito mais!
               </p>
+              <div className="flex items-center space-x-6 mt-6">
+                <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-full border border-blue-200/30">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  <span className="text-sm font-medium text-blue-700">Sistema Online</span>
+                </div>
+                <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-50 to-pink-50 rounded-full border border-purple-200/30">
+                  <span className="text-sm font-medium text-purple-700">✨ Powered by GPT-4o</span>
+                </div>
+              </div>
             </motion.div>
           </div>
 
-          {/* Input area with integrated functions */}
-          <div className="w-full bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-4">
-            <div className="p-4">
+          {/* Enhanced Input Area with Modern Design */}
+          <motion.div 
+            className="w-full bg-white/80 backdrop-blur-sm border border-gray-200/60 rounded-3xl shadow-2xl shadow-gray-500/10 overflow-hidden mb-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+          >
+            <div className="p-6">
               <textarea
                 ref={inputRef}
-                placeholder="Ask me anything..."
+                placeholder="💭 Como posso te ajudar hoje? Digite sua pergunta..."
                 value={inputValue}
                 onChange={(e) => {
                   setInputValue(e.target.value)
@@ -867,284 +682,419 @@ export const AIAssistantInterface = React.forwardRef<
                     sendMessage()
                   }
                 }}
-                className="w-full text-gray-700 text-base outline-none placeholder:text-gray-400 resize-none min-h-[24px] max-h-[120px] overflow-y-auto"
+                className="w-full text-gray-800 text-base outline-none placeholder:text-gray-500 resize-none min-h-[24px] max-h-[120px] overflow-y-auto font-medium leading-relaxed bg-transparent"
                 rows={1}
                 style={{ height: '24px' }}
               />
             </div>
 
-            {/* Functions and actions */}
-            <div className="px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button
+            {/* Enhanced Functions and Actions */}
+            <div className="px-6 py-4 flex items-center justify-between border-t border-gray-100/50">
+              <div className="flex items-center gap-3">
+                <motion.button
                   onClick={() => setSearchEnabled(!searchEnabled)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 ${
                     searchEnabled
-                      ? "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                      : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                      ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 shadow-md border border-blue-200/30"
+                      : "bg-gradient-to-r from-gray-50 to-slate-50 text-gray-500 hover:from-gray-100 hover:to-slate-100 shadow-sm border border-gray-200/30"
                   }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
                   <Search className="w-4 h-4" />
                   <span>Search</span>
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   onClick={() => setDeepResearchEnabled(!deepResearchEnabled)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 ${
                     deepResearchEnabled
-                      ? "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                      : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                      ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 shadow-md border border-blue-200/30"
+                      : "bg-gradient-to-r from-gray-50 to-slate-50 text-gray-500 hover:from-gray-100 hover:to-slate-100 shadow-sm border border-gray-200/30"
                   }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
                   <BrainCircuit className="w-4 h-4" />
                   <span>Research</span>
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   onClick={() => setReasonEnabled(!reasonEnabled)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-medium transition-all duration-300 ${
                     reasonEnabled
-                      ? "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                      : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                      ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 shadow-md border border-blue-200/30"
+                      : "bg-gradient-to-r from-gray-50 to-slate-50 text-gray-500 hover:from-gray-100 hover:to-slate-100 shadow-sm border border-gray-200/30"
                   }`}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
                   <BrainCircuit className="w-4 h-4" />
                   <span>Reason</span>
-                </button>
+                </motion.button>
               </div>
-              <div className="flex items-center gap-2">
-                <button
+              <div className="flex items-center gap-3">
+                <motion.button
                   onClick={sendMessage}
                   disabled={!inputValue.trim() || isAnyLoading}
-                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${
+                  className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-300 ${
                     inputValue.trim() && !isAnyLoading
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      ? "bg-gradient-to-br from-blue-600 via-blue-700 to-purple-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40"
+                      : "bg-gradient-to-br from-gray-100 to-gray-200 text-gray-400 cursor-not-allowed shadow-sm"
                   }`}
+                  whileHover={inputValue.trim() && !isAnyLoading ? { scale: 1.05, y: -2 } : {}}
+                  whileTap={inputValue.trim() && !isAnyLoading ? { scale: 0.95 } : {}}
                 >
                   {loadingState.sendingMessage ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <ArrowUp className="w-4 h-4" />
+                    <ArrowUp className="w-5 h-5" />
                   )}
-                </button>
+                </motion.button>
               </div>
             </div>
-          </div>
+          </motion.div>
+
+          {/* Enhanced Suggestion Cards */}
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-4xl"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.6 }}
+          >
+            {[
+              { icon: "🎨", title: "Gerar Imagem", desc: "Crie imagens incríveis com DALL-E", prompt: "Gere uma imagem de um robô futurista", gradient: "from-pink-500 to-rose-500" },
+              { icon: "💡", title: "Brainstorm", desc: "Desenvolva ideias criativas", prompt: "Me ajude a fazer um brainstorm sobre inovação em IA", gradient: "from-yellow-500 to-orange-500" },
+              { icon: "📊", title: "Análise", desc: "Analise dados e tendências", prompt: "Analise as tendências de IA para 2024", gradient: "from-green-500 to-emerald-500" },
+              { icon: "🔍", title: "Pesquisar", desc: "Busque informações detalhadas", prompt: "Pesquise sobre as últimas novidades em tecnologia", gradient: "from-blue-500 to-cyan-500" },
+              { icon: "🚀", title: "Produtividade", desc: "Otimize seu fluxo de trabalho", prompt: "Como posso ser mais produtivo no trabalho?", gradient: "from-purple-500 to-indigo-500" },
+              { icon: "💬", title: "Conversa", desc: "Bate-papo casual e criativo", prompt: "Vamos ter uma conversa interessante sobre o futuro", gradient: "from-teal-500 to-blue-500" },
+            ].map((suggestion, index) => (
+              <motion.button
+                key={index}
+                onClick={() => {
+                  setInputValue(suggestion.prompt)
+                  setTimeout(() => sendMessage(), 100)
+                }}
+                className="relative p-5 bg-white/70 backdrop-blur-sm rounded-2xl border border-gray-200/50 hover:bg-white/90 transition-all duration-300 text-left shadow-lg hover:shadow-xl group overflow-hidden"
+                whileHover={{ scale: 1.02, y: -3 }}
+                whileTap={{ scale: 0.98 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8 + index * 0.1 }}
+              >
+                {/* Gradient Border Effect */}
+                <div className={`absolute inset-0 bg-gradient-to-r ${suggestion.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300 rounded-2xl`} />
+                
+                <div className="relative z-10">
+                  <div className="text-3xl mb-3 group-hover:scale-110 transition-transform duration-300">{suggestion.icon}</div>
+                  <h3 className="font-bold text-gray-800 mb-1.5 text-base">{suggestion.title}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{suggestion.desc}</p>
+                </div>
+                
+                {/* Hover Arrow */}
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+                  <ArrowUp className="w-4 h-4 text-gray-600 rotate-45" />
+                </div>
+              </motion.button>
+            ))}
+          </motion.div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
+      {/* Anonymous User Alert */}
+      {!isAuthenticated && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200/50 px-6 py-4 shadow-sm"
+        >
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center">
+                <Shield className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="text-orange-800 font-medium text-sm">
+                  ⚠️ <strong>Modo Anônimo:</strong> Suas conversas não estão sendo salvas permanentemente
+                </p>
+                <p className="text-orange-700 text-xs mt-0.5">
+                  Faça login para salvar suas conversas e acessá-las em qualquer dispositivo
+                </p>
+              </div>
+            </div>
+            <motion.button
+              onClick={() => {
+                // Aqui você pode adicionar lógica para abrir modal de login
+                console.log('Abrir modal de login')
+              }}
+              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl text-sm font-medium hover:from-orange-700 hover:to-amber-700 transition-all duration-300 shadow-md hover:shadow-lg"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Fazer Login</span>
+            </motion.button>
+          </div>
+        </motion.div>
+      )}
+      
       {/* Messages Area */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-y-auto px-6 py-6">
-          <div className="max-w-4xl mx-auto space-y-6">
+        <div className="h-full overflow-y-auto px-8 py-8">
+          <div className="max-w-5xl mx-auto space-y-8">
             {messages.map((message, index) => (
-              <div
+              <motion.div
                 key={message.id}
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ 
+                  duration: 0.4, 
+                  delay: index * 0.1,
+                  type: "spring",
+                  stiffness: 100,
+                  damping: 10
+                }}
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} group`}
               >
-                <div className={`flex max-w-[85%] ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'} items-start space-x-2`}>
+                <div className={`flex max-w-[85%] ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'} items-start space-x-3`}>
                   
-                  {/* Avatar */}
-                  <div className={`flex-shrink-0 ${message.role === 'user' ? 'ml-3' : 'mr-3'}`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${
+                  {/* Avatar with Enhanced 3D Effect */}
+                  <motion.div 
+                    className={`flex-shrink-0 ${message.role === 'user' ? 'ml-4' : 'mr-4'}`}
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                  >
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-xl transition-all duration-300 ${
                       message.role === 'user' 
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-700' 
-                        : 'bg-gradient-to-r from-gray-100 to-gray-50 border-2 border-gray-200'
+                        ? 'bg-gradient-to-br from-blue-600 via-blue-700 to-purple-600 shadow-blue-500/30 hover:shadow-blue-500/50' 
+                        : 'bg-gradient-to-br from-white via-gray-50 to-blue-50 border-2 border-blue-200/50 shadow-gray-300/20 hover:shadow-blue-300/30'
                     }`}>
                       {message.role === 'user' ? (
-                        <User className="w-5 h-5 text-white" />
+                        <User className="w-6 h-6 text-white drop-shadow-sm" />
                       ) : (
-                        <Bot className="w-5 h-5 text-blue-600" />
+                        <Bot className="w-6 h-6 text-blue-600 drop-shadow-sm" />
                       )}
                     </div>
-                  </div>
+                  </motion.div>
 
-                  {/* Message Content */}
-                  <div className={`relative ${message.role === 'user' ? 'mr-3' : 'ml-3'}`}>
-                    <div className={`p-4 rounded-2xl border shadow-sm ${
+                  {/* Message Content with Enhanced 3D Design */}
+                  <motion.div 
+                    className={`relative ${message.role === 'user' ? 'mr-4' : 'ml-4'}`}
+                    whileHover={{ y: -2 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                  >
+                    <div className={`p-6 rounded-3xl backdrop-blur-sm transition-all duration-300 ${
                       message.role === 'user' 
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white border-blue-600 shadow-blue-200' 
-                        : 'bg-white border-gray-200 shadow-gray-100'
+                        ? 'bg-gradient-to-br from-blue-600 via-blue-700 to-purple-600 text-white shadow-2xl shadow-blue-500/25 hover:shadow-blue-500/35 border border-blue-400/20' 
+                        : 'bg-white/90 border border-gray-200/60 shadow-2xl shadow-gray-500/10 hover:shadow-gray-500/15 hover:bg-white'
                     }`}>
                       
-                      {/* Message Header */}
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-2">
-                          <span className={`text-sm font-semibold ${
-                            message.role === 'user' ? 'text-white' : 'text-gray-700'
+                      {/* Message Header with Modern Design */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                          <span className={`text-sm font-bold tracking-wide ${
+                            message.role === 'user' ? 'text-white/90' : 'text-gray-800'
                           }`}>
-                            {message.role === 'user' ? 'Você' : 'Assistente IA'}
+                            {message.role === 'user' ? '👤 Você' : '🤖 CDI Assistant'}
                           </span>
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            message.role === 'user' ? 'bg-white/20 text-white/80' : 'bg-blue-50 text-blue-600'
+                          <span className={`text-xs px-3 py-1.5 rounded-full font-medium backdrop-blur-sm ${
+                            message.role === 'user' 
+                              ? 'bg-white/20 text-white/80 border border-white/10' 
+                              : 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200/30'
                           }`}>
                             {formatTimestamp(message.timestamp)}
                           </span>
                         </div>
                         
-                        {/* Message Actions */}
-                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Enhanced Message Actions */}
+                        <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
                           {message.role === 'assistant' && (
                             <>
-                              {/* TTS Button */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => playAudio(message.id, message.content, ttsSettings.selectedVoice)}
-                                disabled={audioState[message.id]?.loading}
-                                className={`h-8 px-2 text-xs transition-all duration-200 ${
-                                  audioState[message.id]?.playing 
-                                    ? 'bg-green-500 text-white hover:bg-green-600' 
-                                    : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                                }`}
-                                title={`${audioState[message.id]?.playing ? 'Pausar' : 'Ouvir'} com voz ${ttsSettings.selectedVoice}`}
-                              >
-                                {audioState[message.id]?.loading ? (
-                                  <>
-                                    <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                                    TTS
-                                  </>
-                                ) : audioState[message.id]?.playing ? (
-                                  <>
-                                    <Pause className="w-3 h-3 mr-1" />
-                                    Pausar
-                                  </>
-                                ) : (
-                                  <>
-                                    <Volume2 className="w-3 h-3 mr-1" />
-                                    Ouvir
-                                  </>
-                                )}
-                              </Button>
+                              {/* Enhanced TTS Button */}
+                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => playAudio(message.id, message.content, ttsSettings.selectedVoice)}
+                                  disabled={audioState[message.id]?.loading}
+                                  className={`h-9 px-3 text-xs font-medium rounded-xl backdrop-blur-sm transition-all duration-300 ${
+                                    audioState[message.id]?.playing 
+                                      ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30 hover:shadow-green-500/40' 
+                                      : 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 hover:from-blue-100 hover:to-indigo-100 shadow-md shadow-blue-500/10 border border-blue-200/30'
+                                  }`}
+                                  title={`${audioState[message.id]?.playing ? 'Pausar' : 'Ouvir'} com voz ${ttsSettings.selectedVoice}`}
+                                >
+                                  {audioState[message.id]?.loading ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                                      TTS
+                                    </>
+                                  ) : audioState[message.id]?.playing ? (
+                                    <>
+                                      <Pause className="w-3.5 h-3.5 mr-1.5" />
+                                      Pausar
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Volume2 className="w-3.5 h-3.5 mr-1.5" />
+                                      Ouvir
+                                    </>
+                                  )}
+                                </Button>
+                              </motion.div>
                               
-                              {/* Copy Button */}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => copyMessage(message.content, message.id)}
-                                className="h-6 w-6 p-0 text-gray-500 hover:text-gray-700"
-                              >
-                                {copiedMessageId === message.id ? (
-                                  <CheckCircle2 className="w-3 h-3" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </Button>
+                              {/* Enhanced Copy Button */}
+                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => copyMessage(message.content, message.id)}
+                                  className="h-8 w-8 p-0 rounded-xl bg-gradient-to-r from-gray-50 to-slate-50 text-gray-600 hover:from-gray-100 hover:to-slate-100 hover:text-gray-800 shadow-md shadow-gray-500/10 border border-gray-200/30 transition-all duration-300"
+                                >
+                                  {copiedMessageId === message.id ? (
+                                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                  ) : (
+                                    <Copy className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </motion.div>
                             </>
                           )}
                         </div>
                       </div>
 
-                      {/* Message Text */}
+                      {/* Enhanced Message Text */}
                       <div className={`message-content leading-relaxed ${
                         message.role === 'user' ? 'text-white whitespace-pre-wrap break-words' : 'text-gray-800'
                       }`}>
                         {message.id === 'thinking_temp' ? (
-                          <div className="flex items-center space-x-4">
-                            {/* Ícone de IA animado */}
+                          <div className="flex items-center space-x-6">
+                            {/* Enhanced AI Thinking Animation */}
                             <div className="relative">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center animate-pulse">
-                                <svg className="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                                <svg className="w-5 h-5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
                               </div>
-                              {/* Anel de carregamento */}
-                              <div className="absolute -inset-1 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin"></div>
+                              {/* Enhanced Loading Ring */}
+                              <div className="absolute -inset-1.5 rounded-2xl border-3 border-transparent bg-gradient-to-r from-blue-400 to-purple-500 animate-spin" style={{ 
+                                backgroundClip: 'padding-box',
+                                WebkitBackgroundClip: 'padding-box'
+                              }}></div>
                             </div>
                             
-                            {/* Texto animado */}
-                            <div className="flex flex-col space-y-1">
+                            {/* Enhanced Animated Text */}
+                            <div className="flex flex-col space-y-2">
                               <TextShimmer 
                                 duration={2} 
                                 spread={2} 
-                                className="text-blue-600 font-semibold text-base"
+                                className="text-blue-700 font-bold text-lg bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
                                 as="span"
                               >
-                                🤖 Gerando resposta...
+                                🧠 Processando com IA...
                               </TextShimmer>
-                              <div className="flex items-center space-x-2">
-                                <div className="flex space-x-1">
-                                  <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '100ms' }}></div>
-                                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '200ms' }}></div>
-                                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                                  <div className="w-1.5 h-1.5 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '400ms' }}></div>
+                              <div className="flex items-center space-x-3">
+                                <div className="flex space-x-1.5">
+                                  <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full animate-bounce shadow-sm" style={{ animationDelay: '0ms' }}></div>
+                                  <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-bounce shadow-sm" style={{ animationDelay: '100ms' }}></div>
+                                  <div className="w-2 h-2 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full animate-bounce shadow-sm" style={{ animationDelay: '200ms' }}></div>
+                                  <div className="w-2 h-2 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-full animate-bounce shadow-sm" style={{ animationDelay: '300ms' }}></div>
+                                  <div className="w-2 h-2 bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-full animate-bounce shadow-sm" style={{ animationDelay: '400ms' }}></div>
                                 </div>
-                                <span className="text-xs text-gray-500 animate-pulse">Processando com IA</span>
+                                <span className="text-sm text-gray-600 animate-pulse font-medium">Analisando contexto</span>
                               </div>
                             </div>
                           </div>
                         ) : (
-                          renderMessage(message.content, message.role, message.id)
+                          <AdvancedTextRenderer
+                            content={message.content}
+                            messageRole={message.role}
+                            enableInteractions={true}
+                            options={{
+                              allowEmojis: true,
+                              allowMarkdown: true,
+                              platform: 'universal'
+                            }}
+                            onLinkClick={(url) => window.open(url, '_blank')}
+                            onMentionClick={(username) => console.log('Menção clicada:', username)}
+                            onHashtagClick={(tag) => console.log('Hashtag clicada:', tag)}
+                          />
                         )}
                       </div>
 
-                      {/* Image Display Melhorada */}
+                      {/* Enhanced Image Display */}
                       {message.imageUrl && (
-                        <div className="mt-4">
-                          <div className="relative inline-block bg-gray-50 rounded-xl p-3 border border-gray-200">
+                        <motion.div 
+                          className="mt-6"
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.3, delay: 0.1 }}
+                        >
+                          <div className="relative inline-block bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-2xl p-4 border border-gray-200/50 shadow-xl shadow-gray-500/10">
                             <Image
                               src={message.imageUrl}
                               alt="Imagem gerada por IA"
                               width={400}
                               height={400}
-                              className="rounded-lg max-w-full h-auto shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer"
+                              className="rounded-xl max-w-full h-auto shadow-2xl hover:shadow-3xl transition-all duration-500 cursor-pointer transform hover:scale-[1.02]"
                               style={{ maxHeight: '400px', objectFit: 'contain' }}
                               onClick={() => openFullImageView(message.imageUrl!)}
                             />
                             
-                            {/* Badges de Informação */}
-                            <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded-md text-xs font-medium">
-                              🎨 DALL-E 3
+                            {/* Enhanced Information Badges */}
+                            <div className="absolute top-3 left-3 bg-gradient-to-r from-black/80 to-gray-900/80 text-white px-3 py-1.5 rounded-lg text-xs font-bold backdrop-blur-sm border border-white/10">
+                              ✨ DALL-E 3
                             </div>
                             
-                            {/* Image Controls Destacados */}
-                            <div className="mt-3 flex justify-center space-x-3">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openFullImageView(message.imageUrl!)}
-                                className="h-9 px-4 text-sm bg-white hover:bg-gray-50 border-gray-300 text-gray-700 transition-all duration-200"
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                Visualizar
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => downloadImage(message.imageUrl!, `dall-e-${Date.now()}.png`)}
-                                className="h-9 px-4 text-sm bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 transition-all duration-200"
-                              >
-                                <Download className="w-4 h-4 mr-2" />
-                                Baixar
-                              </Button>
+                            {/* Enhanced Image Controls */}
+                            <div className="mt-4 flex justify-center space-x-4">
+                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openFullImageView(message.imageUrl!)}
+                                  className="h-10 px-4 text-sm bg-white hover:bg-gray-50 border-gray-300 text-gray-700 transition-all duration-300 rounded-xl shadow-md hover:shadow-lg font-medium"
+                                >
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  Visualizar
+                                </Button>
+                              </motion.div>
+                              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => downloadImage(message.imageUrl!, `dall-e-${Date.now()}.png`)}
+                                  className="h-10 px-4 text-sm bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border-blue-200 text-blue-700 transition-all duration-300 rounded-xl shadow-md hover:shadow-lg font-medium"
+                                >
+                                  <Download className="w-4 h-4 mr-2" />
+                                  Baixar
+                                </Button>
+                              </motion.div>
                             </div>
                           </div>
-                        </div>
+                        </motion.div>
                       )}
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
-              </div>
+              </motion.div>
             ))}
-
-            {/* Removido indicador de carregamento duplicado - agora usa apenas a mensagem thinking_temp */}
 
             <div ref={messagesEndRef} />
           </div>
         </div>
       </div>
 
-      {/* Input Area */}
-      <div className="border-t border-gray-200 bg-white p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-end space-x-4">
+      {/* Enhanced Input Area */}
+      <div className="border-t border-gray-200/50 bg-gradient-to-r from-white via-blue-50/20 to-indigo-50/20 backdrop-blur-sm p-8">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-end space-x-6">
             <div className="flex-1">
-              <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 shadow-sm">
+              <div className="bg-white/80 backdrop-blur-sm border border-gray-200/60 rounded-3xl p-5 shadow-2xl shadow-gray-500/10 hover:shadow-gray-500/15 transition-all duration-300">
                 <textarea
                   ref={inputRef}
                   value={inputValue}
@@ -1159,7 +1109,7 @@ export const AIAssistantInterface = React.forwardRef<
                     }
                   }}
                   placeholder="Digite sua mensagem... (Shift+Enter para nova linha)"
-                  className="w-full bg-transparent text-gray-700 resize-none outline-none placeholder:text-gray-400 text-base min-h-[24px] max-h-[120px] overflow-y-auto"
+                  className="w-full bg-transparent text-gray-800 resize-none outline-none placeholder:text-gray-500 text-base min-h-[24px] max-h-[120px] overflow-y-auto font-medium leading-relaxed"
                   rows={1}
                   disabled={isAnyLoading}
                   style={{ height: '24px' }}
@@ -1167,23 +1117,24 @@ export const AIAssistantInterface = React.forwardRef<
               </div>
             </div>
             
-
-            
-            <button
+            <motion.button
               onClick={sendMessage}
               disabled={!inputValue.trim() || isAnyLoading}
-              className={`p-4 rounded-2xl transition-all duration-200 shadow-md ${
+              className={`p-5 rounded-3xl transition-all duration-300 shadow-2xl font-medium ${
                 inputValue.trim() && !isAnyLoading
-                  ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-blue-200"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  ? "bg-gradient-to-br from-blue-600 via-blue-700 to-purple-600 text-white hover:from-blue-700 hover:via-blue-800 hover:to-purple-700 shadow-blue-500/30 hover:shadow-blue-500/40 border border-blue-400/20"
+                  : "bg-gradient-to-br from-gray-100 to-gray-200 text-gray-400 cursor-not-allowed shadow-gray-500/10"
               }`}
+              whileHover={inputValue.trim() && !isAnyLoading ? { scale: 1.05, y: -2 } : {}}
+              whileTap={inputValue.trim() && !isAnyLoading ? { scale: 0.95 } : {}}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
             >
               {loadingState.sendingMessage ? (
                 <Loader2 className="w-6 h-6 animate-spin" />
               ) : (
                 <Send className="w-6 h-6" />
               )}
-            </button>
+            </motion.button>
           </div>
         </div>
       </div>
@@ -1219,6 +1170,23 @@ export const AIAssistantInterface = React.forwardRef<
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating Summary Button */}
+      {onOpenSummaryPanel && conversationId && (
+        <motion.button
+          onClick={onOpenSummaryPanel}
+          className="fixed top-6 right-6 w-14 h-14 bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white rounded-2xl shadow-2xl hover:shadow-blue-500/25 border border-blue-400/20 backdrop-blur-sm z-30 flex items-center justify-center group"
+          whileHover={{ scale: 1.05, y: -2 }}
+          whileTap={{ scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 400, damping: 10 }}
+          title="Ver Resumo da Conversa"
+        >
+          <BarChart3 className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
+          <div className="absolute -bottom-2 -right-2 w-6 h-6 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center border-2 border-white shadow-lg">
+            <span className="text-xs font-bold text-white">AI</span>
+          </div>
+        </motion.button>
       )}
 
       {/* Conversation Loading Animation */}

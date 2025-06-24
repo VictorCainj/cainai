@@ -79,7 +79,7 @@ export default function LandingPage() {
         {/* Footer */}
         <div className="text-center mt-8">
           <p className="text-gray-400 text-sm">
-            © 2024 CDI Chat • Powered by GPT-4 Turbo + DALL-E 3
+            © 2024 CDI Chat • Powered by GPT-4o + DALL-E 3
           </p>
         </div>
       </div>

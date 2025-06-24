@@ -10,10 +10,18 @@
 ## ✨ Funcionalidades Principais
 
 ### 🧠 **Inteligência Artificial Avançada**
-- **GPT-4 Turbo** com super memória contextual
+- **GPT-4o** com super memória contextual
 - **Conversas persistentes** entre sessões
 - **Context7 MCP** para documentação dinâmica
 - **Histórico inteligente** com busca
+- **📊 Resumo Inteligente** - Análise automática de temas e tendências
+
+### 🎨 **Interface Moderna e Fluida**
+- **Design 3D** com gradientes e sombras avançadas
+- **Animações suaves** com Framer Motion
+- **Micro-interações** responsivas
+- **Painel deslizante** para resumo de conversas
+- **Cards de sugestões** interativos
 
 ### 🎵 **Text-to-Speech Premium**
 - **6 vozes humanas realistas** da OpenAI
@@ -86,16 +94,22 @@ CDI/
 - **Styling**: Tailwind CSS, Framer Motion
 - **Backend**: Next.js API Routes
 - **Database**: Supabase PostgreSQL
-- **AI**: OpenAI GPT-4 Turbo, DALL-E 3, TTS-1-HD
+- **AI**: OpenAI GPT-4o, DALL-E 3, TTS-1-HD
 - **Auth**: Supabase Auth
 - **Icons**: Lucide React
 
-## 📚 Documentação
+## 📚 Funcionalidades
 
-- 📋 **[Visão Geral](docs/README.md)** - Documentação completa
-- 🔧 **[Setup MCP](docs/MCP-SETUP-GUIDE.md)** - Configuração avançada
-- 🎵 **[TTS & Imagens](docs/FUNCIONALIDADES-TTS-IMAGEM.md)** - Funcionalidades
-- 🛠️ **[Troubleshooting](docs/CURSOR-MCP-TROUBLESHOOTING.md)** - Solução de problemas
+### 🎯 Interface Principal
+- Acesse `/chatbot` (requer login)
+- Interface de chat intuitiva
+- Histórico de conversas persistente
+- Controles de TTS integrados
+
+### 🔧 Configuração Avançada
+- Context7 MCP para documentação dinâmica
+- Múltiplos provedores de autenticação
+- Configurações personalizáveis de voz
 
 ## 🎯 Como Usar
 
@@ -114,6 +128,14 @@ CDI/
 - **Criar**: "Desenhe...", "Crie uma imagem de...", "Faça um logo..."
 - **Visualizar**: Botão "👁️ Visualizar" para tela cheia
 - **Baixar**: Botão "📥 Baixar" para salvar localmente
+
+### 📊 Resumo Inteligente de Conversas
+- **Acesso**: Botão flutuante "📊" no canto superior direito ou menu lateral
+- **Geração sob demanda**: Apenas quando você solicitar (botão ou comando de texto)
+- **Salvamento automático**: Resumos ficam persistentes no banco de dados
+- **Análise por IA**: GPT-4 analisa tópicos, pontos-chave e sentimentos
+- **Comandos de texto**: Digite "gerar resumo", "resumir conversa" ou "resumo"
+- **Persistência**: Último resumo sempre disponível para cada conversa
 
 ## 🔧 Scripts Disponíveis
 

@@ -1,104 +1,107 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { sessionManager } from '@/lib/session'
 
 export async function POST(request: NextRequest) {
   try {
     const { fromUserId, toUserId } = await request.json()
-
+    
     if (!fromUserId || !toUserId) {
-      return NextResponse.json({ error: 'fromUserId e toUserId são obrigatórios' }, { status: 400 })
+      return NextResponse.json({
+        success: false,
+        error: 'fromUserId e toUserId são obrigatórios'
+      }, { status: 400 })
     }
 
-    if (fromUserId === toUserId) {
-      return NextResponse.json({ error: 'IDs de origem e destino não podem ser iguais' }, { status: 400 })
-    }
-
-    // Verificar se existem conversas para migrar
+    // Verificar se há conversas para migrar
     const { data: conversationsToMigrate, error: checkError } = await supabase
       .from('chat_conversations')
-      .select('id, title, created_at')
+      .select('id, title')
       .eq('user_id', fromUserId)
 
     if (checkError) {
       return NextResponse.json({
         success: false,
-        error: `Erro ao verificar conversas: ${checkError.message}`
+        error: 'Erro ao verificar conversas: ' + checkError.message
       }, { status: 500 })
     }
 
     if (!conversationsToMigrate || conversationsToMigrate.length === 0) {
       return NextResponse.json({
-        success: true,
-        migratedCount: 0,
-        message: 'Nenhuma conversa para migrar'
-      })
+        success: false,
+        error: 'Nenhuma conversa encontrada para migrar'
+      }, { status: 404 })
     }
 
-    // Migrar as conversas
-    const { error: migrationError } = await supabase
+    // Migrar conversas
+    const { error: migrateError } = await supabase
       .from('chat_conversations')
-      .update({ 
-        user_id: toUserId,
-        updated_at: new Date().toISOString()
-      })
+      .update({ user_id: toUserId })
       .eq('user_id', fromUserId)
 
-    if (migrationError) {
+    if (migrateError) {
       return NextResponse.json({
         success: false,
-        error: `Erro na migração: ${migrationError.message}`
+        error: 'Erro ao migrar conversas: ' + migrateError.message
       }, { status: 500 })
-    }
-
-    // Verificar se a migração foi bem-sucedida
-    const { data: migratedConversations, error: verifyError } = await supabase
-      .from('chat_conversations')
-      .select('id')
-      .eq('user_id', toUserId)
-
-    if (verifyError) {
-      return NextResponse.json({
-        success: false,
-        error: `Erro na verificação: ${verifyError.message}`
-      }, { status: 500 })
-    }
-
-    // Log da migração para auditoria
-    try {
-      await supabase
-        .from('migration_logs')
-        .insert({
-          from_user_id: fromUserId,
-          to_user_id: toUserId,
-          conversations_migrated: conversationsToMigrate.length,
-          migrated_at: new Date().toISOString()
-        })
-    } catch (logError) {
-      // Falha no log não deve interromper o processo
-      console.warn('Erro ao registrar log de migração:', logError)
     }
 
     return NextResponse.json({
       success: true,
+      message: `${conversationsToMigrate.length} conversas migradas com sucesso`,
       migratedCount: conversationsToMigrate.length,
-      migratedConversations: conversationsToMigrate.map(c => ({
-        id: c.id,
-        title: c.title,
-        created_at: c.created_at
-      })),
-      message: `${conversationsToMigrate.length} conversas migradas com sucesso`
+      conversations: conversationsToMigrate
     })
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido'
+    }, { status: 500 })
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    // Buscar conversas órfãs (possíveis candidatas para migração)
+    const currentUserId = sessionManager.getUserId()
     
-    return NextResponse.json(
-      { 
+    // Buscar todas as conversas que não são do usuário atual
+    const { data: allConversations, error } = await supabase
+      .from('chat_conversations')
+      .select('id, title, user_id, created_at')
+      .neq('user_id', currentUserId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (error) {
+      return NextResponse.json({
         success: false,
-        error: 'Erro interno do servidor',
-        details: errorMessage
-      },
-      { status: 500 }
-    )
+        error: error.message
+      }, { status: 500 })
+    }
+
+    // Agrupar por userId
+    const userGroups: Record<string, any[]> = {}
+    allConversations?.forEach(conv => {
+      if (!userGroups[conv.user_id]) {
+        userGroups[conv.user_id] = []
+      }
+      userGroups[conv.user_id].push(conv)
+    })
+
+    return NextResponse.json({
+      success: true,
+      currentUserId,
+      orphanedConversations: userGroups,
+      totalOrphaned: allConversations?.length || 0,
+      message: 'Conversas disponíveis para migração'
+    })
+
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro desconhecido'
+    }, { status: 500 })
   }
 } 

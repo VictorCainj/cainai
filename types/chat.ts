@@ -145,7 +145,7 @@ export interface LoadingState {
 
 // Tipos para configurações
 export interface ChatSettings {
-  model: 'gpt-4-turbo' | 'gpt-4' | 'gpt-3.5-turbo'
+  model: 'gpt-4o' | 'gpt-4-turbo' | 'gpt-4' | 'gpt-3.5-turbo'
   maxTokens: number
   temperature: number
   topP: number

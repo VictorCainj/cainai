@@ -199,8 +199,8 @@ class CompressionService {
     this.stats.totalCompressedBytes += compressedSize
     this.stats.compressionsSaved++
     
-    this.stats.avgCompressionRatio = 
-      (this.stats.totalCompressedSize / this.stats.totalOriginalBytes) * 100
+        this.stats.avgCompressionRatio =
+      (this.stats.totalCompressedBytes / this.stats.totalOriginalBytes) * 100
   }
 
   // Obter estatísticas de performance

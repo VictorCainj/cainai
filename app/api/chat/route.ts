@@ -3,13 +3,14 @@ import OpenAI from 'openai'
 import { chatService } from '@/lib/chat-service'
 import { sessionManager } from '@/lib/session'
 import { context7Service } from '@/lib/context7-service'
+import { supabase } from '@/lib/supabase'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-// Prompt otimizado para super memória com GPT-4 Turbo + Context7 MCP
-const SYSTEM_PROMPT = `Você é um assistente especializado em produtividade com SUPER MEMÓRIA, powered by GPT-4 Turbo + Context7 MCP. Você tem acesso completo ao histórico da conversa atual e documentação atualizada em tempo real.
+// Prompt otimizado para super memória com GPT-4o + Context7 MCP
+const SYSTEM_PROMPT = `Você é um assistente especializado em produtividade com SUPER MEMÓRIA, powered by GPT-4o + Context7 MCP. Você tem acesso completo ao histórico da conversa atual e documentação atualizada em tempo real.
 
 **SUAS CAPACIDADES DE MEMÓRIA:**
 🧠 **Memória Contextual**: Lembro de tudo que foi discutido nesta conversa
@@ -155,7 +156,11 @@ export async function POST(request: NextRequest) {
     message = bodyData.message
     const { conversationId, userId, fullContext } = bodyData
     
-    const effectiveUserId = userId || sessionManager.getUserId()
+    // Tentar obter usuário autenticado do Supabase
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    
+    // Priorizar usuário autenticado, depois providedUserId, depois sessionManager
+    const effectiveUserId = user?.id || userId || sessionManager.getUserId()
 
     if (!message || !effectiveUserId) {
       return NextResponse.json({ error: 'Message and userId required' }, { status: 400 })
@@ -163,6 +168,72 @@ export async function POST(request: NextRequest) {
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
+    }
+
+    // Detectar comandos de resumo
+    const lowerMessage = message.toLowerCase().trim()
+    const isResumeCommand = lowerMessage.includes('gere um resumo') || 
+                          lowerMessage.includes('faça um resumo') || 
+                          lowerMessage.includes('gerar resumo') ||
+                          lowerMessage.includes('resumir conversa') ||
+                          lowerMessage.includes('fazer resumo') ||
+                          lowerMessage === 'resumo' ||
+                          lowerMessage.includes('resumir esta conversa') ||
+                          lowerMessage.includes('criar resumo')
+
+    if (isResumeCommand && conversationId && !conversationId.startsWith('temp')) {
+      // Redirecionar para geração de resumo
+      try {
+        const summaryResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/conversations/${conversationId}/generate-summary`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId: effectiveUserId })
+        })
+        
+        const summaryData = await summaryResponse.json()
+        
+        if (summaryData.success) {
+          const summary = summaryData.summary
+          const responseText = `📊 **Cronologia da Conversa Gerada**
+
+**Contexto:**
+${summary.summaryText}
+
+**Cronologia de Ações:**
+${summary.timeline && summary.timeline.length > 0 
+  ? summary.timeline.map((entry: any) => `🕐 **${entry.time}** (${entry.period}): ${entry.action}`).join('\n')
+  : 'Nenhuma ação cronológica identificada'
+}
+
+**Análise:**
+• **Sentimento:** ${summary.sentiment === 'positive' ? '😊 Positivo' : summary.sentiment === 'negative' ? '😔 Negativo' : '😐 Neutro'}
+• **Gerado em:** ${new Date(summary.generatedAt).toLocaleString('pt-BR')}
+
+💡 *Cronologia salva automaticamente. Você pode acessá-la a qualquer momento através do painel lateral ou do botão flutuante.*`
+
+          return NextResponse.json({
+            message: responseText,
+            conversationId,
+            summaryGenerated: true,
+            success: true
+          })
+        } else {
+          return NextResponse.json({
+            message: "❌ **Erro ao gerar resumo**\n\nNão foi possível gerar o resumo da conversa. Certifique-se de que há mensagens suficientes na conversa (mínimo de 2 mensagens).",
+            conversationId,
+            success: true
+          })
+        }
+      } catch (error) {
+        console.error('Erro ao gerar resumo via chat:', error)
+        return NextResponse.json({
+          message: "❌ **Erro de conexão**\n\nOcorreu um erro ao tentar gerar o resumo. Tente novamente em alguns instantes.",
+          conversationId,
+          success: true
+        })
+      }
     }
 
     const isServiceHealthy = await chatService.healthCheck()
@@ -293,7 +364,7 @@ export async function POST(request: NextRequest) {
     })
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-4o',
       messages: openAIMessages,
       max_tokens: 4096,
       temperature: 0.7,
@@ -331,7 +402,7 @@ export async function POST(request: NextRequest) {
       success: true,
       isTemporary: isTemporaryMode,
       usage: completion.usage,
-      model: 'gpt-4-turbo-preview',
+      model: 'gpt-4o',
       contextUsed: contextMessages.length,
       superMemoryActive: true,
       dalleGenerated: !!imageUrl,
@@ -354,7 +425,7 @@ export async function POST(request: NextRequest) {
       }
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -377,7 +448,7 @@ export async function POST(request: NextRequest) {
         success: true,
         mode: 'fallback',
         superMemoryActive: false,
-        model: 'gpt-4-turbo-preview'
+        model: 'gpt-4o'
       })
 
     } catch (fallbackError) {

@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'CDI - Chat com IA',
-  description: 'Assistente de produtividade com GPT-4 Turbo, Super Memória e DALL-E 3',
+  description: 'Assistente de produtividade com GPT-4o, Super Memória e DALL-E 3',
 }
 
 export default function RootLayout({

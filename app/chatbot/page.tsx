@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { AIAssistantInterface } from '@/components/ui/ai-assistant-interface'
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar'
 import { SettingsModal } from '@/components/ui/settings-modal'
-import { Sparkles, Loader2, Zap, Activity, MessageCircle, Settings, Home, Brain, History, LogOut, Plus, Clock, Trash2, Calendar } from 'lucide-react'
+import { ConversationSummaryPanel } from '@/components/chat/conversation-summary-panel'
+import { Sparkles, Loader2, Zap, Activity, MessageCircle, Settings, Home, Brain, History, LogOut, Plus, Clock, Trash2, Calendar, BarChart3 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { chatService } from '@/lib/chat-service'
 import { sessionManager } from '@/lib/session'
+import { useSimpleConversations } from '@/hooks/useSimpleConversations'
 import { Button } from '@/components/ui/button'
 import { UserMenu } from '@/components/auth/user-menu'
 import Link from 'next/link'
@@ -38,17 +40,31 @@ export default function ChatbotPage() {
   const chatInterfaceRef = useRef<{ startNewConversation: () => void; loadConversation: (id: string) => void; conversationId: string | null }>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [loadingConversations, setLoadingConversations] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showSummaryPanel, setShowSummaryPanel] = useState(false)
   
-  // Obter userId
-  const userId = sessionManager.getUserId() || user?.id
+  // Obter userId de forma consistente
+  const [userId, setUserId] = useState<string | null>(null)
+  
+  useEffect(() => {
+    // Garantir userId consistente no frontend
+    const consistentUserId = user?.id || sessionManager.getUserId()
+    setUserId(consistentUserId)
+  }, [user])
+  
+  // Hook simples para conversas
+  const {
+    conversations,
+    loading: loadingConversations,
+    error: conversationsError,
+    loadConversations,
+    refreshConversations
+  } = useSimpleConversations()
 
   const handleHistoryClick = () => {
     setShowHistory(!showHistory)
-    if (!showHistory && conversations.length === 0) {
-      loadConversations()
+    if (!showHistory && conversations.length === 0 && userId) {
+      loadConversations(userId)
     }
   }
 
@@ -57,37 +73,7 @@ export default function ChatbotPage() {
     setShowHistory(false)
   }
 
-  // Carregar conversas do usuário
-  const loadConversations = async () => {
-    if (!userId) {
-      setLoadingConversations(false)
-      return
-    }
 
-    try {
-      setLoadingConversations(true)
-      const conversationsData = await chatService.getUserConversations(userId)
-      
-      if (conversationsData && conversationsData.length > 0) {
-        const formattedConversations: Conversation[] = conversationsData.map((conv: any) => ({
-          id: conv.id,
-          title: conv.title || 'Conversa sem título',
-          last_message: conv.last_message || 'Sem mensagens',
-          created_at: conv.created_at,
-          updated_at: conv.updated_at,
-          message_count: conv.message_count || 0
-        }))
-        setConversations(formattedConversations)
-      } else {
-        setConversations([])
-      }
-    } catch (error) {
-      console.error('Erro ao carregar conversas:', error)
-      setConversations([])
-    } finally {
-      setLoadingConversations(false)
-    }
-  }
 
   // Formatar timestamp
   const formatTimestamp = (dateString: string) => {
@@ -117,12 +103,16 @@ export default function ChatbotPage() {
   const handleDeleteConversation = async (conversationId: string) => {
     try {
       await chatService.deleteConversation(conversationId)
-      setConversations(prev => prev.filter(conv => conv.id !== conversationId))
       
       // Se a conversa excluída era a atual, limpar seleção
       if (currentConversationId === conversationId) {
         handleNewConversation()
       }
+      
+              // Recarregar conversas se o histórico estiver visível
+        if (showHistory && userId) {
+          refreshConversations()
+        }
     } catch (error) {
       console.error('Erro ao excluir conversa:', error)
     }
@@ -140,6 +130,12 @@ export default function ChatbotPage() {
       href: "#",
       icon: <History className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
       onClick: handleHistoryClick
+    },
+    {
+      label: "Resumo Conversa",
+      href: "#",
+      icon: <BarChart3 className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+      onClick: () => setShowSummaryPanel(true)
     },
     {
       label: "Configurações",
@@ -189,7 +185,7 @@ export default function ChatbotPage() {
     
     // Buscar título real da conversa
     try {
-      const response = await fetch(`/api/conversations?userId=${user?.id}`)
+      const response = await fetch(`/api/conversations?userId=${userId}`)
       const data = await response.json()
       
       if (data.success && data.conversations) {
@@ -222,9 +218,9 @@ export default function ChatbotPage() {
   // Recarregar conversas quando usuário muda
   useEffect(() => {
     if (userId && showHistory) {
-      loadConversations()
+      loadConversations(userId)
     }
-  }, [userId])
+  }, [userId, showHistory, loadConversations])
 
   // Atualizar título quando a conversa for criada
   useEffect(() => {
@@ -234,8 +230,8 @@ export default function ChatbotPage() {
       setCurrentConversationTitle(title || 'Nova Sessão Neural')
       
       // Recarregar lista de conversas se o histórico estiver visível
-      if (showHistory) {
-        loadConversations()
+      if (showHistory && userId) {
+        refreshConversations()
       }
     }
 
@@ -364,9 +360,34 @@ export default function ChatbotPage() {
             {/* Histórico de Conversas */}
             {showHistory && sidebarOpen && (
               <div className="mt-6 border-t border-neutral-200 dark:border-neutral-700 pt-4">
-                <h3 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3 px-2">
-                  Histórico
-                </h3>
+                <div className="flex items-center justify-between mb-3 px-2">
+                  <h3 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    Histórico
+                  </h3>
+                  {/* Status */}
+                  <div className="flex items-center space-x-2">
+                    {!loadingConversations && conversations.length > 0 && (
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-xs text-green-600 dark:text-green-400">
+                          {conversations.length} conversa{conversations.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    )}
+                    {/* Botão de Refresh */}
+                    <button
+                      onClick={() => {
+                        if (userId) {
+                          loadConversations(userId)
+                        }
+                      }}
+                      className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors"
+                      title="Atualizar conversas"
+                    >
+                      🔄
+                    </button>
+                  </div>
+                </div>
                 <div className="max-h-64 overflow-y-auto space-y-1">
                   {loadingConversations ? (
                     <div className="p-3 text-center">
@@ -377,7 +398,7 @@ export default function ChatbotPage() {
                       Nenhuma conversa encontrada
                     </div>
                   ) : (
-                    conversations.map((conversation) => (
+                    conversations.map((conversation: any) => (
                       <div
                         key={conversation.id}
                         className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
@@ -416,7 +437,6 @@ export default function ChatbotPage() {
           </div>
           <div className="pb-2">
             <UserMenu 
-              onOpenSettings={() => setShowSettings(true)}
               variant="light"
             />
           </div>
@@ -426,7 +446,10 @@ export default function ChatbotPage() {
       {/* Área de Chat - Layout Simplificado */}
       <div className="flex-1 flex flex-col min-w-0 relative bg-white dark:bg-neutral-900">
         <div className="flex-1 min-h-0 relative">
-          <AIAssistantInterface ref={chatInterfaceRef} />
+          <AIAssistantInterface 
+            ref={chatInterfaceRef} 
+            onOpenSummaryPanel={() => setShowSummaryPanel(true)}
+          />
         </div>
       </div>
 
@@ -434,6 +457,15 @@ export default function ChatbotPage() {
       <SettingsModal
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      {/* Painel de Resumo da Conversa Atual */}
+      <ConversationSummaryPanel
+        isOpen={showSummaryPanel}
+        onClose={() => setShowSummaryPanel(false)}
+        userId={userId || null}
+        conversationId={currentConversationId}
+        conversationTitle={currentConversationTitle}
       />
     </div>
   )
